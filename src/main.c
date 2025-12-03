@@ -1,5 +1,4 @@
-git add .#include "raylib.h"
-#include "game.h"
+git add .#include "game.h"
 
 
 // Gestionnaire de texture
