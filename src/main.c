@@ -1,4 +1,4 @@
-git add .#include "game.h"
+#include "game.h"
 
 
 // Gestionnaire de texture
