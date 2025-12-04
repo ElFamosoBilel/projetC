@@ -2,18 +2,17 @@
 #include <stdio.h> // Pour TraceLog et printf
 
 // --- 0. IMPORT EXTERNE ---
-// On a besoin d'accéder au tableau des textures défini dans main.c
-// (Assure-toi que gTileTextures est bien une variable globale dans main.c)
 extern Texture2D gTileTextures[]; 
+// Note: gTileTextureCount est défini dans main.c, on peut l'utiliser si on l'ajoute en extern,
+// mais ici on vérifie juste que l'index existe.
+extern int gTileTextureCount; 
 
 // --- 1. VARIABLES GLOBALES ---
-// Définition réelle des variables (elles sont déclarées extern dans game.h)
 int selectedX = -1;
 int selectedY = -1;
 
 // --- 2. FONCTIONS UTILITAIRES (Helpers) ---
 
-// Vide une tuile complètement
 static void TileClear(Tile *t) 
 {
     t->layerCount = 0;
@@ -22,7 +21,6 @@ static void TileClear(Tile *t)
     }
 }
 
-// Ajoute un élément sur le dessus de la pile (Push)
 static void TilePush(Tile *t, int textureIndex) 
 {
     if (t->layerCount < MAX_LAYERS) {
@@ -31,18 +29,11 @@ static void TilePush(Tile *t, int textureIndex)
     }
 }
 
-// Retire l'élément du dessus et renvoie son ID (Pop)
 static int TilePop(Tile *t) 
 {
-    // Sécurité : on ne retire rien si c'est juste le sol (couche 0) ou vide
     if (t->layerCount <= 1) return 0;
-
-    // On récupère l'index de la texture du sommet
     int objectIndex = t->layers[t->layerCount - 1];
-    
-    // On réduit la taille de la pile (effacement virtuel)
     t->layerCount--;
-
     return objectIndex;
 }
 
@@ -56,92 +47,39 @@ void GameInit(Board *board)
             Tile *t = &board->tiles[y][x];
             TileClear(t);
 
-<<<<<<< Updated upstream
             // Couche 0 : Sol (Damier)
-            int groundIndex = (x + y) % 2; 
+            int groundIndex = (x + y) % 2;
             TilePush(t, groundIndex);
 
-            // Couche 1 : Objets
-            // Condition : 2 premières lignes (0,1) OU 2 dernières (6,7)
-            if (y < 2 || y >= BOARD_ROWS - 2)
-            {
-                int objectIndex = 2; // Ton objet (marteau, etc.)
-=======
-            // couche 0 : sol
-            int groundIndex = (x+y) % 2;
-            TilePush(t, groundIndex);
-
-            // disposition des pièces au début
-            if (y == 1)
-            {
-                int objectIndex = 6; 
->>>>>>> Stashed changes
-                TilePush(t, objectIndex);
-            }
+            // --- PLACEMENT DES PIÈCES (Version Jules) ---
             
+            // Pions Noirs (Ligne 1)
+            if (y == 1) {
+                TilePush(t, 7); // Pion noir (vérifie tes IDs dans main.c)
+            }
+            // Pions Blancs (Ligne 6)
+            if (y == 6) {
+                TilePush(t, 6); // Pion blanc
+            }
+
+            // Pièces Nobles Noires (Ligne 0)
             if (y == 0)
             {
-                if (x == 0 || x == 7)
-                {
-                    int objectIndex = 12;
-                    TilePush(t, objectIndex);
-                }
-                if (x == 1 || x == 6)
-                {
-                    int objectIndex = 2;
-                    TilePush(t, objectIndex);
-                }
-                if (x == 2 || x == 5)
-                {
-                    int objectIndex = 4;
-                    TilePush(t, objectIndex);
-                }
-                if (x == 3)
-                {
-                    int objectIndex = 8;
-                    TilePush(t, objectIndex);
-                }
-                if (x == 4)
-                {
-                    int objectIndex = 10;
-                    TilePush(t, objectIndex);
-                }
-                
+                if (x == 0 || x == 7) TilePush(t, 13); // Tour noire
+                if (x == 1 || x == 6) TilePush(t, 3);  // Cavalier noir
+                if (x == 2 || x == 5) TilePush(t, 5);  // Fou noir
+                if (x == 3) TilePush(t, 9);            // Reine noire
+                if (x == 4) TilePush(t, 11);           // Roi noir
             }
 
-            if (y == 6)
-            {
-                int objectIndex = 7; 
-                TilePush(t, objectIndex);
-            }
-
+            // Pièces Nobles Blanches (Ligne 7)
             if (y == 7)
             {
-                if (x == 0 || x == 7)
-                {
-                    int objectIndex = 13;
-                    TilePush(t, objectIndex);
-                }
-                if (x == 1 || x == 6)
-                {
-                    int objectIndex = 3;
-                    TilePush(t, objectIndex);
-                }
-                if (x == 2 || x == 5)
-                {
-                    int objectIndex = 5;
-                    TilePush(t, objectIndex);
-                }
-                if (x == 3)
-                {
-                    int objectIndex = 9;
-                    TilePush(t, objectIndex);
-                }
-                if (x == 4)
-                {
-                    int objectIndex = 11;
-                    TilePush(t, objectIndex);
-                }   
+                if (x == 0 || x == 7) TilePush(t, 12); // Tour blanche
+                if (x == 1 || x == 6) TilePush(t, 2);  // Cavalier blanc
+                if (x == 2 || x == 5) TilePush(t, 4);  // Fou blanc
+                if (x == 3) TilePush(t, 8);            // Reine blanche
+                if (x == 4) TilePush(t, 10);           // Roi blanc
             }
         }
     }
@@ -150,25 +88,39 @@ void GameInit(Board *board)
 // --- 4. MISE À JOUR (LOGIQUE) ---
 void GameUpdate(Board *board, float dt)
 {
-    (void)dt; // On ignore dt pour l'instant (évite le warning)
+    (void)dt;
 
     if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
     {
         Vector2 m = GetMousePosition();
+
+        // --- CALCUL DES COORDONNÉES (Adapté au nouveau dessin de Jules) ---
+        int screenW = GetScreenWidth();
+        int screenH = GetScreenHeight();
         
-        // Conversion Pixels -> Coordonnées Grille
-        int x = (int)(m.x / TILE_SIZE);
-        int y = (int)(m.y / TILE_SIZE);
+        // On recalcule la géométrie du plateau pour savoir où on a cliqué
+        int tileSizeW = screenW / BOARD_COLS;
+        int tileSizeH = screenH / BOARD_ROWS;
+        int tileSize = (tileSizeW < tileSizeH) ? tileSizeW : tileSizeH;
+        
+        int boardW = tileSize * BOARD_COLS;
+        int boardH = tileSize * BOARD_ROWS;
+        
+        int offsetX = (screenW - boardW) / 2;
+        int offsetY = (screenH - boardH) / 2;
+
+        // Formule inverse : (Souris - Décalage) / TailleCase
+        int x = (int)((m.x - offsetX) / tileSize);
+        int y = (int)((m.y - offsetY) / tileSize);
 
         // Vérification des limites du tableau
         if (x >= 0 && x < BOARD_COLS && y >= 0 && y < BOARD_ROWS)
         {
             Tile *clickedTile = &board->tiles[y][x];
 
-            // CAS 1 : Rien n'est sélectionné -> On sélectionne
+            // CAS 1 : Sélection
             if (selectedX == -1)
             {
-                // On ne sélectionne que s'il y a un objet (plus que le sol)
                 if (clickedTile->layerCount > 1) 
                 {
                     selectedX = x;
@@ -176,34 +128,32 @@ void GameUpdate(Board *board, float dt)
                     TraceLog(LOG_INFO, "SELECTION: (%d, %d)", x, y);
                 }
             }
-            // CAS 2 : Un objet est déjà sélectionné -> On agit
+            // CAS 2 : Action
             else 
             {
-                // Si on reclique sur le même -> Annulation
                 if (x == selectedX && y == selectedY)
                 {
                     selectedX = -1;
                     selectedY = -1;
                     TraceLog(LOG_INFO, "DESELECTION");
                 }
-                // Si la case cible est vide (layerCount == 1, juste le sol) -> Déplacement
                 else if (clickedTile->layerCount == 1)
                 {
-                    // 1. Récupérer la case source
                     Tile *oldTile = &board->tiles[selectedY][selectedX];
-
-                    // 2. Prendre l'objet (Pop)
                     int objID = TilePop(oldTile); 
-
-                    // 3. Poser l'objet (Push)
                     TilePush(clickedTile, objID);
 
-                    // 4. Réinitialiser la sélection
                     selectedX = -1;
                     selectedY = -1;
                     TraceLog(LOG_INFO, "DEPLACEMENT vers (%d, %d)", x, y);
                 }
             }
+        }
+        else
+        {
+            // Si on clique en dehors du plateau (dans les bandes noires/blanches)
+            selectedX = -1;
+            selectedY = -1;
         }
     }
 }
@@ -214,16 +164,14 @@ void GameDraw(const Board *board)
     int screenW = GetScreenWidth();
     int screenH = GetScreenHeight();
 
-    // Taille dynamique des tuiles adaptée à l'écran
+    // Calcul de la taille dynamique (responsive)
     int tileSizeW = screenW / BOARD_COLS;
     int tileSizeH = screenH / BOARD_ROWS;
     int tileSize = (tileSizeW < tileSizeH) ? tileSizeW : tileSizeH;
 
-    // Taille réelle du plateau
     int boardW = tileSize * BOARD_COLS;
     int boardH = tileSize * BOARD_ROWS;
 
-    // Offsets pour centrer
     int offsetX = (screenW - boardW) / 2;
     int offsetY = (screenH - boardH) / 2;
 
@@ -234,55 +182,36 @@ void GameDraw(const Board *board)
         {
             const Tile *t = &board->tiles[y][x];
 
-<<<<<<< Updated upstream
-            for (int i = 0; i < t->layerCount; i++)
-            {
-                int textureIndex = t->layers[i];
-                DrawTexture(
-                    gTileTextures[textureIndex], 
-                    x * TILE_SIZE, 
-                    y * TILE_SIZE, 
-                    WHITE
-                );
-            }
-        }
-    }
-
-    // Dessin du curseur de sélection 
-    if (selectedX != -1 && selectedY != -1)
-    {
-        DrawRectangleLines(
-            selectedX * TILE_SIZE, 
-            selectedY * TILE_SIZE, 
-            TILE_SIZE, 
-            TILE_SIZE, 
-            BLUE
-        );
-    }
-=======
+            // Position de dessin de CETTE case
             int drawX = offsetX + x * tileSize;
             int drawY = offsetY + y * tileSize;
 
-            // Dessine les couches
+            // Dessine toutes les couches
             for (int i = 0; i < t->layerCount; i++)
             {
                 int idx = t->layers[i];
-                if (idx >= 0 && idx < gTileTextureCount)
-                {
-                    DrawTexturePro(
-                        gTileTextures[idx],
-                        (Rectangle){0, 0, gTileTextures[idx].width, gTileTextures[idx].height},
-                        (Rectangle){drawX, drawY, tileSize, tileSize},
-                        (Vector2){0,0},
-                        0,
-                        WHITE
-                    );
-                }
+                // On suppose que idx est valide, DrawTexturePro gère le scaling
+                DrawTexturePro(
+                    gTileTextures[idx],
+                    (Rectangle){0, 0, gTileTextures[idx].width, gTileTextures[idx].height},
+                    (Rectangle){drawX, drawY, tileSize, tileSize},
+                    (Vector2){0,0},
+                    0,
+                    WHITE
+                );
             }
-
-            // Optionnel : contour (debug)
-            DrawRectangleLines(drawX, drawY, tileSize, tileSize, DARKGRAY);
+            
+            // Dessin de la sélection (Le cadre vert)
+            // On le dessine APRES les textures pour qu'il soit par dessus
+            if (x == selectedX && y == selectedY)
+            {
+                DrawRectangleLines(drawX, drawY, tileSize, tileSize, GREEN);
+            }
+            // Optionnel : un petit quadrillage gris pour bien voir les cases
+            else 
+            {
+                DrawRectangleLines(drawX, drawY, tileSize, tileSize, Fade(DARKGRAY, 0.3f));
+            }
         }
     }
->>>>>>> Stashed changes
 }
