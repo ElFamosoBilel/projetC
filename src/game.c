@@ -10,6 +10,7 @@ extern int gTileTextureCount;
 // --- 1. VARIABLES GLOBALES ---
 int selectedX = -1;
 int selectedY = -1;
+int currentTurn = 0; // 0 = Blancs, 1 = Noirs
 
 // --- 2. FONCTIONS UTILITAIRES (Helpers) ---
 
@@ -84,6 +85,16 @@ void GameInit(Board *board)
         }
     }
 }
+// Renvoie 0 pour Blanc, 1 pour Noir, et -1 si ce n'est pas une pièce (sol)
+static int GetPieceColor(int textureID)
+{
+    // Les sols sont 0 et 1, donc on les ignore
+    if (textureID < 2) return -1;
+    
+    // Si l'ID est Pair (ex: 2, 4, 6) -> Blanc (0)
+    // Si l'ID est Impair (ex: 3, 5, 7) -> Noir (1)
+    return (textureID % 2 == 0) ? 0 : 1;
+}
 
 // --- 4. MISE À JOUR (LOGIQUE) ---
 void GameUpdate(Board *board, float dt)
@@ -94,49 +105,57 @@ void GameUpdate(Board *board, float dt)
     {
         Vector2 m = GetMousePosition();
 
-        // --- CALCUL DES COORDONNÉES (Adapté au nouveau dessin de Jules) ---
+        // Recalcul des coordonnées (Comme Jules l'a fait)
         int screenW = GetScreenWidth();
         int screenH = GetScreenHeight();
-        
-        // On recalcule la géométrie du plateau pour savoir où on a cliqué
         int tileSizeW = screenW / BOARD_COLS;
         int tileSizeH = screenH / BOARD_ROWS;
         int tileSize = (tileSizeW < tileSizeH) ? tileSizeW : tileSizeH;
-        
         int boardW = tileSize * BOARD_COLS;
         int boardH = tileSize * BOARD_ROWS;
-        
         int offsetX = (screenW - boardW) / 2;
         int offsetY = (screenH - boardH) / 2;
 
-        // Formule inverse : (Souris - Décalage) / TailleCase
         int x = (int)((m.x - offsetX) / tileSize);
         int y = (int)((m.y - offsetY) / tileSize);
 
-        // Vérification des limites du tableau
         if (x >= 0 && x < BOARD_COLS && y >= 0 && y < BOARD_ROWS)
         {
             Tile *clickedTile = &board->tiles[y][x];
 
-            // CAS 1 : Sélection
+            // --- CAS 1 : TENTATIVE DE SÉLECTION ---
             if (selectedX == -1)
             {
+                // On vérifie s'il y a une pièce
                 if (clickedTile->layerCount > 1) 
                 {
-                    selectedX = x;
-                    selectedY = y;
-                    TraceLog(LOG_INFO, "SELECTION: (%d, %d)", x, y);
+                    // ON RÉCUPÈRE L'ID DE LA PIÈCE
+                    int pieceID = clickedTile->layers[clickedTile->layerCount - 1];
+                    int pieceColor = GetPieceColor(pieceID);
+
+                    // VERIFICATION DE LA COULEUR
+                    if (pieceColor == currentTurn)
+                    {
+                        selectedX = x;
+                        selectedY = y;
+                        TraceLog(LOG_INFO, "Selection OK : (%d, %d)", x, y);
+                    }
+                    else
+                    {
+                        TraceLog(LOG_WARNING, "Pas touche ! C'est pas ton tour.");
+                    }
                 }
             }
-            // CAS 2 : Action
+            // --- CAS 2 : DÉPLACEMENT ---
             else 
             {
+                // Annulation (si on reclique sur soi-même)
                 if (x == selectedX && y == selectedY)
                 {
                     selectedX = -1;
                     selectedY = -1;
-                    TraceLog(LOG_INFO, "DESELECTION");
                 }
+                // Mouvement vers une case vide
                 else if (clickedTile->layerCount == 1)
                 {
                     Tile *oldTile = &board->tiles[selectedY][selectedX];
@@ -145,13 +164,17 @@ void GameUpdate(Board *board, float dt)
 
                     selectedX = -1;
                     selectedY = -1;
-                    TraceLog(LOG_INFO, "DEPLACEMENT vers (%d, %d)", x, y);
+
+                    // --- FIN DU TOUR ---
+                    // On inverse : 0 devient 1, et 1 devient 0
+                    currentTurn = 1 - currentTurn;
+                    
+                    TraceLog(LOG_INFO, "Coup joue ! Au tour de : %s", currentTurn == 0 ? "Blancs" : "Noirs");
                 }
             }
         }
         else
         {
-            // Si on clique en dehors du plateau (dans les bandes noires/blanches)
             selectedX = -1;
             selectedY = -1;
         }
