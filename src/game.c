@@ -99,41 +99,46 @@ static int GetPieceColor(int textureID)
 // --- 4. MISE À JOUR (LOGIQUE) ---
 void GameUpdate(Board *board, float dt)
 {
-    (void)dt;
+    (void)dt; // On ignore dt pour l'instant
 
     if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
     {
         Vector2 m = GetMousePosition();
 
-        // Recalcul des coordonnées (Comme Jules l'a fait)
+        // --- CALCUL DES COORDONNÉES (Version Jules) ---
         int screenW = GetScreenWidth();
         int screenH = GetScreenHeight();
+        
         int tileSizeW = screenW / BOARD_COLS;
         int tileSizeH = screenH / BOARD_ROWS;
         int tileSize = (tileSizeW < tileSizeH) ? tileSizeW : tileSizeH;
+        
         int boardW = tileSize * BOARD_COLS;
         int boardH = tileSize * BOARD_ROWS;
+        
         int offsetX = (screenW - boardW) / 2;
         int offsetY = (screenH - boardH) / 2;
 
+        // Conversion Souris -> Grille
         int x = (int)((m.x - offsetX) / tileSize);
         int y = (int)((m.y - offsetY) / tileSize);
 
+        // Vérification qu'on est bien DANS le plateau
         if (x >= 0 && x < BOARD_COLS && y >= 0 && y < BOARD_ROWS)
         {
             Tile *clickedTile = &board->tiles[y][x];
 
-            // --- CAS 1 : TENTATIVE DE SÉLECTION ---
+            // --- CAS 1 : RIEN N'EST SÉLECTIONNÉ ---
             if (selectedX == -1)
             {
-                // On vérifie s'il y a une pièce
+                // S'il y a une pièce (couche > 1)
                 if (clickedTile->layerCount > 1) 
                 {
-                    // ON RÉCUPÈRE L'ID DE LA PIÈCE
+                    // On vérifie la couleur
                     int pieceID = clickedTile->layers[clickedTile->layerCount - 1];
                     int pieceColor = GetPieceColor(pieceID);
 
-                    // VERIFICATION DE LA COULEUR
+                    // Est-ce que c'est mon tour ?
                     if (pieceColor == currentTurn)
                     {
                         selectedX = x;
@@ -142,39 +147,78 @@ void GameUpdate(Board *board, float dt)
                     }
                     else
                     {
-                        TraceLog(LOG_WARNING, "Pas touche ! C'est pas ton tour.");
+                        TraceLog(LOG_WARNING, "Pas touche ! Ce n'est pas ton tour.");
                     }
                 }
             }
-            // --- CAS 2 : DÉPLACEMENT ---
+            // --- CAS 2 : UNE PIÈCE EST DÉJÀ SÉLECTIONNÉE (ACTION) ---
             else 
             {
-                // Annulation (si on reclique sur soi-même)
+                bool moveAllowed = false;
+
+                // A. On reclique sur soi-même -> Annulation
                 if (x == selectedX && y == selectedY)
                 {
                     selectedX = -1;
                     selectedY = -1;
+                    TraceLog(LOG_INFO, "Annulation");
                 }
-                // Mouvement vers une case vide
-                else if (clickedTile->layerCount == 1)
+                else
                 {
-                    Tile *oldTile = &board->tiles[selectedY][selectedX];
-                    int objID = TilePop(oldTile); 
-                    TilePush(clickedTile, objID);
-
-                    selectedX = -1;
-                    selectedY = -1;
-
-                    // --- FIN DU TOUR ---
-                    // On inverse : 0 devient 1, et 1 devient 0
-                    currentTurn = 1 - currentTurn;
+                    // B. Analyse de la cible
                     
-                    TraceLog(LOG_INFO, "Coup joue ! Au tour de : %s", currentTurn == 0 ? "Blancs" : "Noirs");
+                    // Scénario 1 : La case est VIDE (Juste le sol)
+                    if (clickedTile->layerCount == 1)
+                    {
+                        moveAllowed = true;
+                    }
+                    // Scénario 2 : La case est OCCUPÉE (Bagarre ?)
+                    else if (clickedTile->layerCount > 1)
+                    {
+                        int targetID = clickedTile->layers[clickedTile->layerCount - 1];
+                        int targetColor = GetPieceColor(targetID);
+
+                        // Si c'est un ENNEMI
+                        if (targetColor != -1 && targetColor != currentTurn)
+                        {
+                            TraceLog(LOG_INFO, "BAGARRE ! Piece adverse eliminee.");
+                            
+                            // ON MANGE LA PIÈCE (On vide la case cible)
+                            TilePop(clickedTile); 
+                            
+                            moveAllowed = true;
+                        }
+                        else
+                        {
+                            TraceLog(LOG_WARNING, "Impossible : Case bloquee par un ami.");
+                        }
+                    }
+
+                    // C. Exécution du mouvement
+                    if (moveAllowed)
+                    {
+                        // 1. On prend notre pièce de l'ancienne case
+                        Tile *oldTile = &board->tiles[selectedY][selectedX];
+                        int objID = TilePop(oldTile); 
+                        
+                        // 2. On la pose sur la nouvelle case
+                        TilePush(clickedTile, objID);
+
+                        // 3. Fin du tour
+                        selectedX = -1;
+                        selectedY = -1;
+                        
+                        // Changement de joueur (0->1 ou 1->0)
+                        currentTurn = 1 - currentTurn; 
+                        
+                        TraceLog(LOG_INFO, "Coup valide. Au suivant !");
+                    }
                 }
             }
         }
         else
         {
+            // Clic en dehors du plateau -> On déselectionne
             selectedX = -1;
             selectedY = -1;
         }
