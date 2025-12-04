@@ -16,8 +16,8 @@ int main(void)
     SetTargetFPS(60);
 
     // Chargement des textures
-    gTileTextures[0] = LoadTexture("assets/sand.png");
-    gTileTextures[1] = LoadTexture("assets/water.png");
+    gTileTextures[0] = LoadTexture("assets/carreau_noir.png");
+    gTileTextures[1] = LoadTexture("assets/carreau_blanc.png");
     gTileTextures[2] = LoadTexture("assets/tool.png");
     gTileTextureCount = 3;
     
@@ -34,10 +34,9 @@ int main(void)
         ClearBackground(RAYWHITE);
 
         GameDraw(&board);
-        DrawFPS(10, 10);
 
         double time = GetTime();
-        DrawText(TextFormat("Time : %.2f", time), 170, 10, 20, GREEN);
+        /* DrawText(TextFormat("Time : %.2f", time), 170, 10, 20, GREEN); */
 
         EndDrawing();
     }
