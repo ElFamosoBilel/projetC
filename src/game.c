@@ -56,6 +56,7 @@ void GameInit(Board *board)
             Tile *t = &board->tiles[y][x];
             TileClear(t);
 
+<<<<<<< Updated upstream
             // Couche 0 : Sol (Damier)
             int groundIndex = (x + y) % 2; 
             TilePush(t, groundIndex);
@@ -65,7 +66,82 @@ void GameInit(Board *board)
             if (y < 2 || y >= BOARD_ROWS - 2)
             {
                 int objectIndex = 2; // Ton objet (marteau, etc.)
+=======
+            // couche 0 : sol
+            int groundIndex = (x+y) % 2;
+            TilePush(t, groundIndex);
+
+            // disposition des pièces au début
+            if (y == 1)
+            {
+                int objectIndex = 6; 
+>>>>>>> Stashed changes
                 TilePush(t, objectIndex);
+            }
+            
+            if (y == 0)
+            {
+                if (x == 0 || x == 7)
+                {
+                    int objectIndex = 12;
+                    TilePush(t, objectIndex);
+                }
+                if (x == 1 || x == 6)
+                {
+                    int objectIndex = 2;
+                    TilePush(t, objectIndex);
+                }
+                if (x == 2 || x == 5)
+                {
+                    int objectIndex = 4;
+                    TilePush(t, objectIndex);
+                }
+                if (x == 3)
+                {
+                    int objectIndex = 8;
+                    TilePush(t, objectIndex);
+                }
+                if (x == 4)
+                {
+                    int objectIndex = 10;
+                    TilePush(t, objectIndex);
+                }
+                
+            }
+
+            if (y == 6)
+            {
+                int objectIndex = 7; 
+                TilePush(t, objectIndex);
+            }
+
+            if (y == 7)
+            {
+                if (x == 0 || x == 7)
+                {
+                    int objectIndex = 13;
+                    TilePush(t, objectIndex);
+                }
+                if (x == 1 || x == 6)
+                {
+                    int objectIndex = 3;
+                    TilePush(t, objectIndex);
+                }
+                if (x == 2 || x == 5)
+                {
+                    int objectIndex = 5;
+                    TilePush(t, objectIndex);
+                }
+                if (x == 3)
+                {
+                    int objectIndex = 9;
+                    TilePush(t, objectIndex);
+                }
+                if (x == 4)
+                {
+                    int objectIndex = 11;
+                    TilePush(t, objectIndex);
+                }   
             }
         }
     }
@@ -135,12 +211,30 @@ void GameUpdate(Board *board, float dt)
 // --- 5. DESSIN DU JEU ---
 void GameDraw(const Board *board)
 {
+    int screenW = GetScreenWidth();
+    int screenH = GetScreenHeight();
+
+    // Taille dynamique des tuiles adaptée à l'écran
+    int tileSizeW = screenW / BOARD_COLS;
+    int tileSizeH = screenH / BOARD_ROWS;
+    int tileSize = (tileSizeW < tileSizeH) ? tileSizeW : tileSizeH;
+
+    // Taille réelle du plateau
+    int boardW = tileSize * BOARD_COLS;
+    int boardH = tileSize * BOARD_ROWS;
+
+    // Offsets pour centrer
+    int offsetX = (screenW - boardW) / 2;
+    int offsetY = (screenH - boardH) / 2;
+
+    // Dessin du plateau
     for (int y = 0; y < BOARD_ROWS; y++)
     {
         for (int x = 0; x < BOARD_COLS; x++)
         {
             const Tile *t = &board->tiles[y][x];
 
+<<<<<<< Updated upstream
             for (int i = 0; i < t->layerCount; i++)
             {
                 int textureIndex = t->layers[i];
@@ -165,4 +259,30 @@ void GameDraw(const Board *board)
             BLUE
         );
     }
+=======
+            int drawX = offsetX + x * tileSize;
+            int drawY = offsetY + y * tileSize;
+
+            // Dessine les couches
+            for (int i = 0; i < t->layerCount; i++)
+            {
+                int idx = t->layers[i];
+                if (idx >= 0 && idx < gTileTextureCount)
+                {
+                    DrawTexturePro(
+                        gTileTextures[idx],
+                        (Rectangle){0, 0, gTileTextures[idx].width, gTileTextures[idx].height},
+                        (Rectangle){drawX, drawY, tileSize, tileSize},
+                        (Vector2){0,0},
+                        0,
+                        WHITE
+                    );
+                }
+            }
+
+            // Optionnel : contour (debug)
+            DrawRectangleLines(drawX, drawY, tileSize, tileSize, DARKGRAY);
+        }
+    }
+>>>>>>> Stashed changes
 }
