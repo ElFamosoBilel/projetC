@@ -1,4 +1,4 @@
-CC      = clang
+CC      = gcc
 CFLAGS  = -Wall -Wextra -std=c17 -g -Iinclude $(shell pkg-config --cflags raylib)
 LDFLAGS = $(shell pkg-config --libs raylib)
 

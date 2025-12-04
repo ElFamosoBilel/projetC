@@ -50,7 +50,7 @@ void GameInit(Board *board)
             TilePush(t, groundIndex);
 
             // en bonus : mettre un “décor” 1 case sur 3
-            if (x == y)
+            if (y == 1)
             {
                 int objectIndex = 2; // ex: pierre, arbre…
                 TilePush(t, objectIndex);
