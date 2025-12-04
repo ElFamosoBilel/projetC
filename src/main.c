@@ -6,7 +6,6 @@
 Texture2D gTileTextures[3];
 int gTileTextureCount = 0;
 
-
 int main(void)
 {
     const int screenWidth = BOARD_COLS * TILE_SIZE;

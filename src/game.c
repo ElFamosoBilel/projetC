@@ -1,41 +1,52 @@
 #include "game.h"
+#include <stdio.h> // Pour TraceLog et printf
 
-extern Texture2D gTileTextures[];
-extern int gTileTextureCount;
+// --- 0. IMPORT EXTERNE ---
+// On a besoin d'accéder au tableau des textures défini dans main.c
+// (Assure-toi que gTileTextures est bien une variable globale dans main.c)
+extern Texture2D gTileTextures[]; 
 
+// --- 1. VARIABLES GLOBALES ---
+// Définition réelle des variables (elles sont déclarées extern dans game.h)
+int selectedX = -1;
+int selectedY = -1;
 
-// ******************************************
-//
+// --- 2. FONCTIONS UTILITAIRES (Helpers) ---
 
-static void TileClear(Tile *t)
+// Vide une tuile complètement
+static void TileClear(Tile *t) 
 {
     t->layerCount = 0;
-    for (int i = 0; i < MAX_LAYERS; i++)
-    {
-        t->layers[i] = -1;
+    for(int i = 0; i < MAX_LAYERS; i++) {
+        t->layers[i] = 0;
     }
 }
 
-static bool TilePush(Tile *t, int texIndex)
+// Ajoute un élément sur le dessus de la pile (Push)
+static void TilePush(Tile *t, int textureIndex) 
 {
-    if (t->layerCount >= MAX_LAYERS)
-        return false;
-    t->layers[t->layerCount++] = texIndex;
-    return true;
+    if (t->layerCount < MAX_LAYERS) {
+        t->layers[t->layerCount] = textureIndex;
+        t->layerCount++;
+    }
 }
 
-static int TilePop(Tile *t)
+// Retire l'élément du dessus et renvoie son ID (Pop)
+static int TilePop(Tile *t) 
 {
-    if (t->layerCount <= 0)
-        return -1;
-    int tex = t->layers[--t->layerCount];
-    t->layers[t->layerCount] = -1;
-    return tex;
+    // Sécurité : on ne retire rien si c'est juste le sol (couche 0) ou vide
+    if (t->layerCount <= 1) return 0;
+
+    // On récupère l'index de la texture du sommet
+    int objectIndex = t->layers[t->layerCount - 1];
+    
+    // On réduit la taille de la pile (effacement virtuel)
+    t->layerCount--;
+
+    return objectIndex;
 }
 
-// ******************************************
-// Gestion du board et des entrées
-
+// --- 3. INITIALISATION DU JEU ---
 void GameInit(Board *board)
 {
     for (int y = 0; y < BOARD_ROWS; y++)
@@ -45,53 +56,83 @@ void GameInit(Board *board)
             Tile *t = &board->tiles[y][x];
             TileClear(t);
 
-            // couche 0 : sol
-            int groundIndex = (x+y) % 2; // ex: desert ou mer
+            // Couche 0 : Sol (Damier)
+            int groundIndex = (x + y) % 2; 
             TilePush(t, groundIndex);
 
-            // disposition des marteau sur la diagonale
-            if (x == y)
+            // Couche 1 : Objets
+            // Condition : 2 premières lignes (0,1) OU 2 dernières (6,7)
+            if (y < 2 || y >= BOARD_ROWS - 2)
             {
-                int objectIndex = 2; // ex: pierre, arbre…
+                int objectIndex = 2; // Ton objet (marteau, etc.)
                 TilePush(t, objectIndex);
             }
         }
     }
 }
 
+// --- 4. MISE À JOUR (LOGIQUE) ---
 void GameUpdate(Board *board, float dt)
 {
-    Vector2 m = GetMousePosition();
-    
-    // Gestion des entrées souris sur les tuiles
+    (void)dt; // On ignore dt pour l'instant (évite le warning)
+
     if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
     {
-        int tileX = (int)(m.x) / TILE_SIZE;
-        int tileY = (int)(m.y) / TILE_SIZE;
+        Vector2 m = GetMousePosition();
         
-        TraceLog(LOG_INFO,
-            "MOUSE DOWN at x=%.1f y=%.1f corresponding tile (%d, %d)",
-            m.x, m.y, tileX, tileY);
-            
-            Tile *t = &board->tiles[tileY][tileX];
-            if (t->layerCount > 1)
+        // Conversion Pixels -> Coordonnées Grille
+        int x = (int)(m.x / TILE_SIZE);
+        int y = (int)(m.y / TILE_SIZE);
+
+        // Vérification des limites du tableau
+        if (x >= 0 && x < BOARD_COLS && y >= 0 && y < BOARD_ROWS)
+        {
+            Tile *clickedTile = &board->tiles[y][x];
+
+            // CAS 1 : Rien n'est sélectionné -> On sélectionne
+            if (selectedX == -1)
             {
-                TilePop(t);
+                // On ne sélectionne que s'il y a un objet (plus que le sol)
+                if (clickedTile->layerCount > 1) 
+                {
+                    selectedX = x;
+                    selectedY = y;
+                    TraceLog(LOG_INFO, "SELECTION: (%d, %d)", x, y);
+                }
             }
-            else
+            // CAS 2 : Un objet est déjà sélectionné -> On agit
+            else 
             {
-                int objectIndex = 2;
-                TilePush(t, objectIndex);
+                // Si on reclique sur le même -> Annulation
+                if (x == selectedX && y == selectedY)
+                {
+                    selectedX = -1;
+                    selectedY = -1;
+                    TraceLog(LOG_INFO, "DESELECTION");
+                }
+                // Si la case cible est vide (layerCount == 1, juste le sol) -> Déplacement
+                else if (clickedTile->layerCount == 1)
+                {
+                    // 1. Récupérer la case source
+                    Tile *oldTile = &board->tiles[selectedY][selectedX];
+
+                    // 2. Prendre l'objet (Pop)
+                    int objID = TilePop(oldTile); 
+
+                    // 3. Poser l'objet (Push)
+                    TilePush(clickedTile, objID);
+
+                    // 4. Réinitialiser la sélection
+                    selectedX = -1;
+                    selectedY = -1;
+                    TraceLog(LOG_INFO, "DEPLACEMENT vers (%d, %d)", x, y);
+                }
             }
         }
-
-    // Gestion des entrées clavier
-    if (IsKeyPressed(KEY_SPACE))
-    {
-        TraceLog(LOG_INFO, "SPACE pressed in GameUpdate");
     }
 }
 
+// --- 5. DESSIN DU JEU ---
 void GameDraw(const Board *board)
 {
     for (int y = 0; y < BOARD_ROWS; y++)
@@ -100,35 +141,28 @@ void GameDraw(const Board *board)
         {
             const Tile *t = &board->tiles[y][x];
 
-            // fond “vide” au cas où
-            DrawRectangle(
-                x * TILE_SIZE,
-                y * TILE_SIZE,
-                TILE_SIZE,
-                TILE_SIZE,
-                LIGHTGRAY);
-
-            // dessine chaque couche dans l'ordre
             for (int i = 0; i < t->layerCount; i++)
             {
-                int idx = t->layers[i];
-                if (idx >= 0 && idx < gTileTextureCount)
-                {
-                    DrawTexture(
-                        gTileTextures[idx],
-                        x * TILE_SIZE,
-                        y * TILE_SIZE,
-                        WHITE);
-                }
+                int textureIndex = t->layers[i];
+                DrawTexture(
+                    gTileTextures[textureIndex], 
+                    x * TILE_SIZE, 
+                    y * TILE_SIZE, 
+                    WHITE
+                );
             }
-
-            // contour de la tuile (debug)
-            DrawRectangleLines(
-                x * TILE_SIZE,
-                y * TILE_SIZE,
-                TILE_SIZE,
-                TILE_SIZE,
-                DARKGRAY);
         }
+    }
+
+    // Dessin du curseur de sélection 
+    if (selectedX != -1 && selectedY != -1)
+    {
+        DrawRectangleLines(
+            selectedX * TILE_SIZE, 
+            selectedY * TILE_SIZE, 
+            TILE_SIZE, 
+            TILE_SIZE, 
+            BLUE
+        );
     }
 }
