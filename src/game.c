@@ -1,6 +1,6 @@
 #include "game.h"
 #include <stdio.h> // Pour TraceLog et printf
-#include <stdlib.h> // INDISPENSABLE pour la fonction abs()
+#include <stdlib.h> // Pour abs()
 
 // --- 0. IMPORT EXTERNE ---
 extern Texture2D gTileTextures[]; 
@@ -10,6 +10,10 @@ extern int gTileTextureCount;
 int selectedX = -1;
 int selectedY = -1;
 int currentTurn = 0; // 0 = Blancs, 1 = Noirs
+
+// Variables de fin de partie (Ajout Gauthier)
+bool gameOver = false;
+int winner = -1; // 0 = Blancs, 1 = Noirs
 
 // --- 2. FONCTIONS UTILITAIRES (Helpers) ---
 
@@ -80,13 +84,13 @@ static bool IsPathClear(const Board *board, int startX, int startY, int endX, in
             y += stepY;
         }
     }
-    // Si ce n'est ni l'un ni l'autre (ex: Cavalier), on considère que le chemin n'est pas "bloquable" par cette fonction
     return true; 
 }
 
 // --- 3. INITIALISATION DU JEU ---
 void GameInit(Board *board)
 {
+    // 1. Initialisation du plateau et des pièces
     for (int y = 0; y < BOARD_ROWS; y++)
     {
         for (int x = 0; x < BOARD_COLS; x++)
@@ -102,7 +106,7 @@ void GameInit(Board *board)
             if (y == 1) TilePush(t, 7); // Noir
             if (y == 6) TilePush(t, 6); // Blanc
 
-            // Nobles Noirs
+            // Nobles Noirs (Ligne 0)
             if (y == 0)
             {
                 if (x == 0 || x == 7) TilePush(t, 13); // Tour
@@ -111,7 +115,7 @@ void GameInit(Board *board)
                 if (x == 3) TilePush(t, 9);            // Reine
                 if (x == 4) TilePush(t, 11);           // Roi
             }
-            // Nobles Blancs
+            // Nobles Blancs (Ligne 7)
             if (y == 7)
             {
                 if (x == 0 || x == 7) TilePush(t, 12); // Tour
@@ -122,27 +126,60 @@ void GameInit(Board *board)
             }
         }
     }
+
+    // 2. Initialisation des Timers (10 minutes = 600s)
     board->timer.whiteTime = 600.0f;
     board->timer.blackTime = 600.0f;
+
+    // 3. Reset des variables de jeu
+    gameOver = false;
+    winner = -1;
+    selectedX = -1;
+    selectedY = -1;
+    currentTurn = 0;
+}
+
+// Fonction utilitaire pour recommencer une partie proprement
+void GameReset(Board *board)
+{
+    GameInit(board);
 }
 
 // --- 4. MISE À JOUR (LOGIQUE) ---
 void GameUpdate(Board *board, float dt)
 {
-    // Gestion Timer
-    if (currentTurn == 0) {
-        if (board->timer.whiteTime > 0.0f) board->timer.whiteTime -= dt;
-    } else {
-        if (board->timer.blackTime > 0.0f) board->timer.blackTime -= dt;
+    // --- GESTION DU TIMER ---
+    if (!gameOver)
+    {
+        if (currentTurn == 0)
+            board->timer.whiteTime -= dt;
+        else
+            board->timer.blackTime -= dt;
+
+        // Vérification fin du temps
+        if (board->timer.whiteTime <= 0.0f)
+        {
+            board->timer.whiteTime = 0.0f;
+            winner = 1; // Les Noirs gagnent
+            gameOver = true;
+            TraceLog(LOG_INFO, "GAME OVER - Temps Blancs écoulé");
+        }
+
+        if (board->timer.blackTime <= 0.0f)
+        {
+            board->timer.blackTime = 0.0f;
+            winner = 0; // Les Blancs gagnent
+            gameOver = true;
+            TraceLog(LOG_INFO, "GAME OVER - Temps Noirs écoulé");
+        }
     }
 
-    if (board->timer.whiteTime <= 0.0f || board->timer.blackTime <= 0.0f) {
-        TraceLog(LOG_WARNING, "GAME OVER - Temps écoulé !");
-    }
-
-    // Gestion Souris
+    // --- GESTION DES INPUTS ---
     if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
     {
+        // Si la partie est finie, on ne peut plus jouer (clic = rien)
+        if (gameOver) return;
+
         Vector2 m = GetMousePosition();
 
         // Calculs responsive
@@ -159,6 +196,7 @@ void GameUpdate(Board *board, float dt)
         int x = (int)((m.x - offsetX) / tileSize);
         int y = (int)((m.y - offsetY) / tileSize);
 
+        // Vérification qu'on est DANS le plateau
         if (x >= 0 && x < BOARD_COLS && y >= 0 && y < BOARD_ROWS)
         {
             Tile *clickedTile = &board->tiles[y][x];
@@ -198,7 +236,7 @@ void GameUpdate(Board *board, float dt)
                 int dx = endX - startX;
                 int dy = endY - startY;
 
-                // Annulation (Clic sur soi-même)
+                // A. Annulation (Clic sur soi-même)
                 if (dx == 0 && dy == 0)
                 {
                     selectedX = -1;
@@ -207,7 +245,7 @@ void GameUpdate(Board *board, float dt)
                     return; 
                 }
                 
-                // --- VÉRIFICATION PHYSIQUE ---
+                // B. VÉRIFICATION PHYSIQUE (Règles de déplacement)
                 
                 // Tour
                 if (pieceID == 12 || pieceID == 13)
@@ -252,7 +290,7 @@ void GameUpdate(Board *board, float dt)
                     // Capture Diagonale
                     if (abs(dx) == 1 && dy == direction)
                     {
-                        if (clickedTile->layerCount > 1) { // Doit contenir quelque chose
+                        if (clickedTile->layerCount > 1) { 
                             int targetID = clickedTile->layers[clickedTile->layerCount - 1];
                             int targetColor = GetPieceColor(targetID);
                             if (targetColor != -1 && targetColor != currentTurn) moveAllowed = true;
@@ -271,7 +309,7 @@ void GameUpdate(Board *board, float dt)
                     }
                 }
 
-                // --- VÉRIFICATION FINALE (Case cible occupée par un ami ?) ---
+                // C. VÉRIFICATION FINALE (Case cible occupée par un ami ?)
                 if (moveAllowed)
                 {
                     if (clickedTile->layerCount > 1)
@@ -288,11 +326,15 @@ void GameUpdate(Board *board, float dt)
                         {
                             TraceLog(LOG_INFO, "Capture !");
                             TilePop(clickedTile); // Mange l'ennemi
+                            
+                            // Petite vérif Game Over si on mange le Roi (Basic)
+                            if (targetID == 10) { winner = 1; gameOver = true; } // Roi blanc mangé
+                            if (targetID == 11) { winner = 0; gameOver = true; } // Roi noir mangé
                         }
                     }
                 }
 
-                // --- EXÉCUTION ---
+                // D. EXÉCUTION
                 if (moveAllowed)
                 {
                     int objID = TilePop(oldTile); 
@@ -300,7 +342,12 @@ void GameUpdate(Board *board, float dt)
 
                     selectedX = -1;
                     selectedY = -1;
-                    currentTurn = 1 - currentTurn; 
+                    
+                    // On ne change le tour que si la partie continue
+                    if (!gameOver) {
+                        currentTurn = 1 - currentTurn; 
+                    }
+                    
                     TraceLog(LOG_INFO, "Coup valide.");
                 }
                 else
@@ -311,18 +358,20 @@ void GameUpdate(Board *board, float dt)
         }
         else
         {
+            // Clic en dehors du plateau -> On déselectionne
             selectedX = -1;
             selectedY = -1;
         }
     }
-} // <--- C'EST CELLE-LA QUI MANQUAIT CHEZ JULES !
+}
 
 // --- 5. DESSIN DU JEU ---
 void GameDraw(const Board *board)
 {
-    // (Garde ton code de dessin ici, il est parfait)
     int screenW = GetScreenWidth();
     int screenH = GetScreenHeight();
+
+    // Calcul de la taille dynamique (responsive)
     int tileSizeW = screenW / BOARD_COLS;
     int tileSizeH = screenH / BOARD_ROWS;
     int tileSize = (tileSizeW < tileSizeH) ? tileSizeW : tileSizeH;
@@ -335,6 +384,7 @@ void GameDraw(const Board *board)
     const int TEXT_PADDING = 20; 
     int centerTextY = offsetY + boardH / 2 - FONT_SIZE / 2;
 
+    // Dessin du plateau  
     for (int y = 0; y < BOARD_ROWS; y++)
     {
         for (int x = 0; x < BOARD_COLS; x++)
@@ -343,24 +393,51 @@ void GameDraw(const Board *board)
             int drawX = offsetX + x * tileSize;
             int drawY = offsetY + y * tileSize;
 
+            // Dessine toutes les couches
             for (int i = 0; i < t->layerCount; i++)
             {
                 int idx = t->layers[i];
-                DrawTexturePro(gTileTextures[idx],(Rectangle){0, 0, gTileTextures[idx].width, gTileTextures[idx].height},(Rectangle){drawX, drawY, tileSize, tileSize},(Vector2){0,0},0,WHITE);
+                DrawTexturePro(gTileTextures[idx],
+                    (Rectangle){0, 0, gTileTextures[idx].width, gTileTextures[idx].height},
+                    (Rectangle){drawX, drawY, tileSize, tileSize},
+                    (Vector2){0,0}, 0, WHITE);
             }
             
+            // Sélection
             if (x == selectedX && y == selectedY) DrawRectangleLines(drawX, drawY, tileSize, tileSize, GREEN);
             else DrawRectangleLines(drawX, drawY, tileSize, tileSize, Fade(DARKGRAY, 0.3f));
         }
     }
 
+    // Affichage des Timers
     int whiteM = (int)board->timer.whiteTime / 60;
     int whiteS = (int)board->timer.whiteTime % 60;
-    Color whiteColor = (currentTurn == 0) ? BLUE : DARKGRAY;
-    DrawText(TextFormat("BLANCS\n%02d:%02d", whiteM, whiteS), offsetX - MeasureText("BLANCS", FONT_SIZE) - TEXT_PADDING, centerTextY, FONT_SIZE, whiteColor);
+    Color whiteColor = (currentTurn == 0 && !gameOver) ? BLUE : DARKGRAY;
+    
+    char whiteText[32];
+    sprintf(whiteText, "BLANCS\n%02d:%02d", whiteM, whiteS);
+    int whiteTextWidth = MeasureText("BLANCS", FONT_SIZE);
+    DrawText(whiteText, offsetX - whiteTextWidth - TEXT_PADDING, centerTextY, FONT_SIZE, whiteColor);
 
     int blackM = (int)board->timer.blackTime / 60;
     int blackS = (int)board->timer.blackTime % 60;
-    Color blackColor = (currentTurn == 1) ? BLUE : DARKGRAY;
-    DrawText(TextFormat("NOIRS\n%02d:%02d", blackM, blackS), offsetX + boardW + TEXT_PADDING, centerTextY, FONT_SIZE, blackColor);
+    Color blackColor = (currentTurn == 1 && !gameOver) ? BLUE : DARKGRAY;
+    
+    char blackText[32];
+    sprintf(blackText, "NOIRS\n%02d:%02d", blackM, blackS);
+    DrawText(blackText, offsetX + boardW + TEXT_PADDING, centerTextY, FONT_SIZE, blackColor);
+
+    // Affichage Game Over
+    if (gameOver)
+    {
+        const char *text = (winner == 0) ? "VICTOIRE DES BLANCS" : "VICTOIRE DES NOIRS";
+        int size = 40;
+        int textW = MeasureText(text, size);
+        
+        // Fond semi-transparent
+        DrawRectangle(0, screenH/2 - 50, screenW, 100, Fade(WHITE, 0.8f));
+        // Texte
+        DrawText(text, screenW/2 - textW/2, screenH/2 - size/2, size, RED);
+        DrawText("Appuyez sur R pour recommencer", screenW/2 - MeasureText("Appuyez sur R pour recommencer", 20)/2, screenH/2 + 30, 20, DARKGRAY);
+    }
 }
