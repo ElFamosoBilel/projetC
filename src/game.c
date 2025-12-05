@@ -1,19 +1,19 @@
 #include "game.h"
-#include <stdio.h> // Pour TraceLog et printf
-#include <stdlib.h> // pour la fonction abs()
+#include <stdio.h> 
+#include <stdlib.h> 
 
 // --- 0. IMPORT EXTERNE ---
-extern Texture2D gTileTextures[]; // accède au image depuis le dossier depuis le main
-extern int gTileTextureCount; // déclare le nombre de textures disponibles
+extern Texture2D gTileTextures[]; 
+extern int gTileTextureCount; 
 
 // --- 1. VARIABLES GLOBALES ---
-int selectedX = -1; // permet la selection
-int selectedY = -1; // permet la selection
+int selectedX = -1; 
+int selectedY = -1; 
 int currentTurn = 0; // 0 = Blancs, 1 = Noirs
 
 // --- 2. FONCTIONS UTILITAIRES (Helpers) ---
 
-static void TileClear(Tile *t) // initialise une case vide
+static void TileClear(Tile *t) 
 {
     t->layerCount = 0;
     for(int i = 0; i < MAX_LAYERS; i++) {
@@ -21,7 +21,7 @@ static void TileClear(Tile *t) // initialise une case vide
     }
 }
 
-static void TilePush(Tile *t, int textureIndex)  // ajoute une texture
+static void TilePush(Tile *t, int textureIndex) 
 {
     if (t->layerCount < MAX_LAYERS) {
         t->layers[t->layerCount] = textureIndex;
@@ -29,7 +29,7 @@ static void TilePush(Tile *t, int textureIndex)  // ajoute une texture
     }
 }
 
-static int TilePop(Tile *t) // supprime une texture
+static int TilePop(Tile *t) 
 {
     if (t->layerCount <= 1) return 0;
     int objectIndex = t->layers[t->layerCount - 1];
@@ -47,37 +47,37 @@ static int GetPieceColor(int textureID)
 // Vérifie si le chemin est libre (Tour, Reine, Fou)
 static bool IsPathClear(const Board *board, int startX, int startY, int endX, int endY){
     // Déplacement horizontal
-    if (startY == endY) // si c'est purement un mouvement horrizontal
+    if (startY == endY) 
     {
-        int step = (endX > startX) ? 1 : -1; // si on va à droite ou à gauche
+        int step = (endX > startX) ? 1 : -1; 
         for (int x = startX + step; x != endX; x += step)
         {
-            if (board->tiles[startY][x].layerCount > 1) return false; // fait toute la colonne
+            if (board->tiles[startY][x].layerCount > 1) return false; 
         }
     }
     // Déplacement vertical
     else if (startX == endX)
     {
-        int step = (endY > startY) ? 1 : -1; // si on va en bas ou en haut
+        int step = (endY > startY) ? 1 : -1; 
         for (int y = startY + step; y != endY; y += step)
         {
-            if (board->tiles[y][startX].layerCount > 1) return false; // fait toute la ligne
+            if (board->tiles[y][startX].layerCount > 1) return false; 
         }
     }
     // Déplacement diagonal
-    else if (abs(endX - startX) == abs(endY - startY)) // si c'est purement horizontal
+    else if (abs(endX - startX) == abs(endY - startY)) 
     {
-        int stepX = (endX > startX) ? 1 : -1; // diagonale droite ou gauche
-        int stepY = (endY > startY) ? 1 : -1; // diagonale bas ou haut
+        int stepX = (endX > startX) ? 1 : -1; 
+        int stepY = (endY > startY) ? 1 : -1; 
 
-        int x = startX + stepX; // la case de départ
-        int y = startY + stepY; // la cade de départ
+        int x = startX + stepX; 
+        int y = startY + stepY; 
 
-        while (x != endX) // On s'arrête avant la case finale
+        while (x != endX) 
         {
-            if (board->tiles[y][x].layerCount > 1) return false; // vérifie si c'est bloqué par une pièce
-            x += stepX; // avance de colonne
-            y += stepY; // avance de ligne
+            if (board->tiles[y][x].layerCount > 1) return false; 
+            x += stepX; 
+            y += stepY; 
         }
     }
     // Si ce n'est ni l'un ni l'autre (ex: Cavalier), on considère que le chemin n'est pas "bloquable" par cette fonction
@@ -95,7 +95,7 @@ void GameInit(Board *board) // met en place l'échiquier
             TileClear(t); // vide la case
 
             // Sol
-            int groundIndex = (x + y) % 2; // case noire / blanche
+            int groundIndex = (x + y) % 2; 
             TilePush(t, groundIndex);
 
             // Pions
@@ -122,64 +122,56 @@ void GameInit(Board *board) // met en place l'échiquier
             }
         }
     }
-    board->timer.whiteTime = 600.0f; // timer du joueur Blanc
-    board->timer.blackTime = 600.0f; // timer du joueur Noir
+    
+    // Initialisation de l'état
+    board->timer.whiteTime = 600.0f; 
+    board->timer.blackTime = 600.0f;
+    board->state = STATE_PLAYING;
+    board->winner = -1;
+    currentTurn = 0; // Toujours commencer par les Blancs
+    selectedX = -1;
+    selectedY = -1;
 }
 
-// --- 4. MISE À JOUR (LOGIQUE) ---
-void GameUpdate(Board *board, float dt)
+// --- NOUVEAU : LOGIQUE DE JEU SEULEMENT ---
+static void GameLogicUpdate(Board *board, float dt)
 {
-    // Gestion Timer
-    if (currentTurn == 0) {
-        if (board->timer.whiteTime > 0.0f) board->timer.whiteTime -= dt; // si c'est au tour du joueur BLanc :
-    } else {
-        if (board->timer.blackTime > 0.0f) board->timer.blackTime -= dt; // si c'est au tour du joueur Noir :
-    }
-
-    if (board->timer.whiteTime <= 0.0f || board->timer.blackTime <= 0.0f) {
-        TraceLog(LOG_WARNING, "GAME OVER - Temps écoulé !"); // si le temps d'un des deux joueurs arrive à 0
-    }
-
     // Gestion Souris
     if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
     {
-        Vector2 m = GetMousePosition(); // récupère la position de la souris
+        Vector2 m = GetMousePosition(); 
 
-        // Calculs responsifs
-        int screenW = GetScreenWidth(); // largeur de la fenêtre
-        int screenH = GetScreenHeight(); // longueur de la fenêtre
+        // Calculs responsifs (inchangés)
+        int screenW = GetScreenWidth(); 
+        int screenH = GetScreenHeight(); 
+        int tileSizeW = screenW / BOARD_COLS; 
+        int tileSizeH = screenH / BOARD_ROWS; 
+        int tileSize = (tileSizeW < tileSizeH) ? tileSizeW : tileSizeH; 
+        int boardW = tileSize * BOARD_COLS; 
+        int boardH = tileSize * BOARD_ROWS; 
+        int offsetX = (screenW - boardW) / 2; 
+        int offsetY = (screenH - boardH) / 2; 
 
-        int tileSizeW = screenW / BOARD_COLS; // Calcul la taille potentielle de la case en fonction de la largeur
-        int tileSizeH = screenH / BOARD_ROWS; // Calcul la taille potentielle de la case en fonction de la longueur
+        int x = (int)((m.x - offsetX) / tileSize); 
+        int y = (int)((m.y - offsetY) / tileSize); 
 
-        int tileSize = (tileSizeW < tileSizeH) ? tileSizeW : tileSizeH; // taille réel de la case
-
-        int boardW = tileSize * BOARD_COLS; // Largeur du tableau
-        int boardH = tileSize * BOARD_ROWS; // Longueur du tableau
-
-        int offsetX = (screenW - boardW) / 2; // centrage du tableau
-        int offsetY = (screenH - boardH) / 2; // centrage du tableau
-
-        int x = (int)((m.x - offsetX) / tileSize); // Convertit les coordonnées de la souris en fonction de la colonne
-        int y = (int)((m.y - offsetY) / tileSize); // Convertit les coordonnées de la souris en fonction de la ligne
-
-        if (x >= 0 && x < BOARD_COLS && y >= 0 && y < BOARD_ROWS) // Vérifie les limites de l'échiquier, quelles soient valides
+        if (x >= 0 && x < BOARD_COLS && y >= 0 && y < BOARD_ROWS) 
         {
             Tile *clickedTile = &board->tiles[y][x];
 
             // --- CAS 1 : SÉLECTION ---
-            if (selectedX == -1) // Si mode sélection
+            if (selectedX == -1) 
             {
-                if (clickedTile->layerCount > 1) // si la case contient une pièce
+                if (clickedTile->layerCount > 1) 
                 {
-                    int pieceID = clickedTile->layers[clickedTile->layerCount - 1]; // vérifie la pièce
-                    int pieceColor = GetPieceColor(pieceID); // verifie la couleur de la pièce
+                    int pieceID = clickedTile->layers[clickedTile->layerCount - 1]; 
+                    int pieceColor = GetPieceColor(pieceID); 
 
-                    if (pieceColor == currentTurn) // est-ce que la couleur de la pièce correspond à celle du joueur entrain de jouer ?
+                    if (pieceColor == currentTurn) 
                     {
                         selectedX = x;
                         selectedY = y;
-                        TraceLog(LOG_INFO, "Selection OK"); // sélectionne la pièce
+                        TraceLog(LOG_INFO, "Selection OK"); 
                     }
                     else
                     {
@@ -192,15 +184,15 @@ void GameUpdate(Board *board, float dt)
             {
                 bool moveAllowed = false;
 
-                Tile *oldTile = &board->tiles[selectedY][selectedX]; // Pointeur vers la case de départ
-                int pieceID = oldTile->layers[oldTile->layerCount - 1]; // récupère l'ID de la pièce qui va être déplacé
+                Tile *oldTile = &board->tiles[selectedY][selectedX]; 
+                int pieceID = oldTile->layers[oldTile->layerCount - 1]; 
 
-                int startX = selectedX; // Coordonnées de départ
-                int startY = selectedY; // Coordonnées de départ
-                int endX = x; // Coordonnées d'arrivée
-                int endY = y; // Coordonnées d'arrivée
-                int dx = endX - startX; // Différencce de colonne
-                int dy = endY - startY; // Différence de ligne
+                int startX = selectedX; 
+                int startY = selectedY; 
+                int endX = x; 
+                int endY = y; 
+                int dx = endX - startX; 
+                int dy = endY - startY; 
 
                 // Annulation (Clic sur soi-même)
                 if (dx == 0 && dy == 0) 
@@ -211,7 +203,7 @@ void GameUpdate(Board *board, float dt)
                     return; 
                 }
                 
-                // --- VÉRIFICATION PHYSIQUE ---
+                // VÉRIFICATION PHYSIQUE (Tour, Fou, Reine, Roi, Cavalier, Pion)
                 
                 // Tour
                 if (pieceID == 12 || pieceID == 13)
@@ -250,16 +242,16 @@ void GameUpdate(Board *board, float dt)
                 // Pion
                 else if (pieceID == 6 || pieceID == 7)
                 {
-                    int direction = (currentTurn == 0) ? -1 : 1; // si il descend ou monte en fonction de la couleur
-                    int initialRow = (currentTurn == 0) ? 6 : 1; // La colonne précise
+                    int direction = (currentTurn == 0) ? -1 : 1; 
+                    int initialRow = (currentTurn == 0) ? 6 : 1; 
                     
                     // Capture Diagonale
                     if (abs(dx) == 1 && dy == direction)
                     {
-                        if (clickedTile->layerCount > 1) { // Si la case contient quelque chose
+                        if (clickedTile->layerCount > 1) { 
                             int targetID = clickedTile->layers[clickedTile->layerCount - 1];
                             int targetColor = GetPieceColor(targetID);
-                            if (targetColor != -1 && targetColor != currentTurn) moveAllowed = true; // si c'est une pièce ennemi en diagonal, on mange
+                            if (targetColor != -1 && targetColor != currentTurn) moveAllowed = true; 
                         }
                     }
                     // Avance 1 case
@@ -275,7 +267,7 @@ void GameUpdate(Board *board, float dt)
                     }
                 }
 
-                // --- VÉRIFICATION FINALE (Case cible occupée par un ami ?) ---
+                // VÉRIFICATION FINALE (Case occupée par un ami ?)
                 if (moveAllowed)
                 {
                     if (clickedTile->layerCount > 1)
@@ -291,21 +283,32 @@ void GameUpdate(Board *board, float dt)
                         else if (targetColor != -1 && targetColor != currentTurn) // si y'a une pièce ennemi
                         {
                             TraceLog(LOG_INFO, "Capture !");
+                            
+                            // VÉRIFICATION ROI CAPTURÉ 
+                            if (targetID == 10 || targetID == 11) 
+                            {
+                                board->winner = currentTurn;
+                                board->state = STATE_GAMEOVER;
+                            }
                             TilePop(clickedTile); // Mange l'ennemi
                         }
                     }
                 }
 
-                // --- EXÉCUTION ---
+                // EXÉCUTION
                 if (moveAllowed)
                 {
-                    int objID = TilePop(oldTile); // retire la pièce
-                    TilePush(clickedTile, objID); // ajoute la pièce
+                    int objID = TilePop(oldTile); 
+                    TilePush(clickedTile, objID); 
 
-                    selectedX = -1; // réinitialise la sélection
+                    selectedX = -1; 
                     selectedY = -1;
-                    currentTurn = 1 - currentTurn; // change le tour
-                    TraceLog(LOG_INFO, "Coup valide.");
+                    
+                    if (board->state != STATE_GAMEOVER) // Ne change le tour que si la partie continue
+                    {
+                        currentTurn = 1 - currentTurn; // change le tour
+                        TraceLog(LOG_INFO, "Coup valide.");
+                    }
                 }
                 else
                 {
@@ -313,10 +316,68 @@ void GameUpdate(Board *board, float dt)
                 }
             }
         }
-        else
+        else // Si on clique en dehors du plateau, on annule la sélection
         {
             selectedX = -1;
             selectedY = -1;
+        }
+    }
+}
+
+
+// --- 4. MISE À JOUR (LOGIQUE) ---
+void GameUpdate(Board *board, float dt)
+{
+    if (board->state == STATE_PLAYING)
+    {
+        // Gestion Timer
+        if (currentTurn == 0) {
+            if (board->timer.whiteTime > 0.0f) board->timer.whiteTime -= dt; 
+        } else {
+            if (board->timer.blackTime > 0.0f) board->timer.blackTime -= dt; 
+        }
+
+        // Fin de partie par temps
+        if (board->timer.whiteTime <= 0.0f) {
+            board->state = STATE_GAMEOVER;
+            board->winner = 1; // Noir gagne au temps
+            TraceLog(LOG_WARNING, "GAME OVER - Temps BLANC écoulé !");
+            return;
+        }
+        if (board->timer.blackTime <= 0.0f) {
+            board->state = STATE_GAMEOVER;
+            board->winner = 0; // Blanc gagne au temps
+            TraceLog(LOG_WARNING, "GAME OVER - Temps NOIR écoulé !");
+            return;
+        }
+        
+        // GESTION ABANDON (FORFAIT)
+        if (IsKeyPressed(KEY_SPACE))
+        {
+            board->state = STATE_GAMEOVER;
+            board->winner = 1 - currentTurn; // Le gagnant est l'adversaire
+            TraceLog(LOG_WARNING, "Le joueur %s a déclaré forfait (Espace).", (currentTurn == 0) ? "BLANC" : "NOIR");
+            return;
+        }
+        // Logique de jeu (clics de pièces)
+        GameLogicUpdate(board, dt);
+    }
+    else if (board->state == STATE_GAMEOVER)
+    {
+        // Gestion du clic dans le menu de fin de partie
+        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
+        {
+            Vector2 m = GetMousePosition();
+            int screenW = GetScreenWidth();
+            int screenH = GetScreenHeight();
+            
+            // Détection du clic sur la zone "REJOUER"
+            // Zone approximative : Centre de l'écran, là où le texte "REJOUER" est affiché
+            if (m.x > screenW/2 - 150 && m.x < screenW/2 + 150 && m.y > screenH/2 - 30 && m.y < screenH/2 + 30) 
+            {
+                GameInit(board); // Relance une nouvelle partie
+                TraceLog(LOG_INFO, "Nouvelle partie lancée.");
+            }
         }
     }
 }
@@ -343,6 +404,7 @@ void GameDraw(const Board *board)
 
     int centerTextY = offsetY + boardH / 2 - FONT_SIZE / 2;
 
+    // Dessin du plateau et des pièces
     for (int y = 0; y < BOARD_ROWS; y++)
     {
         for (int x = 0; x < BOARD_COLS; x++)
@@ -354,21 +416,49 @@ void GameDraw(const Board *board)
             for (int i = 0; i < t->layerCount; i++)
             {
                 int idx = t->layers[i];
-                DrawTexturePro(gTileTextures[idx],(Rectangle){0, 0, gTileTextures[idx].width, gTileTextures[idx].height},(Rectangle){drawX, drawY, tileSize, tileSize},(Vector2){0,0},0,WHITE); // affiche d'abord le sol puis la pièce
+                DrawTexturePro(gTileTextures[idx],(Rectangle){0, 0, gTileTextures[idx].width, gTileTextures[idx].height},(Rectangle){drawX, drawY, tileSize, tileSize},(Vector2){0,0},0,WHITE); 
             }
             
-            if (x == selectedX && y == selectedY) DrawRectangleLines(drawX, drawY, tileSize, tileSize, GREEN); // si une case est sélectionné, un petit carré vert apparaît
-            else DrawRectangleLines(drawX, drawY, tileSize, tileSize, Fade(DARKGRAY, 0.3f));
+            if (x == selectedX && y == selectedY) DrawRectangleLines(drawX, drawY, tileSize, tileSize, GREEN); 
         }
     }
 
+    // Dessin des Timers
     int whiteM = (int)board->timer.whiteTime / 60;
     int whiteS = (int)board->timer.whiteTime % 60;
-    Color whiteColor = (currentTurn == 0) ? RAYWHITE : DARKGRAY;
-    DrawText(TextFormat("BLANCS\n%02d:%02d", whiteM, whiteS), offsetX - MeasureText("BLANCS", FONT_SIZE) - TEXT_PADDING, centerTextY, FONT_SIZE, whiteColor); // Affiche le timer des Blancs
+    Color whiteColor = (currentTurn == 0 && board->state == STATE_PLAYING) ? RAYWHITE : DARKGRAY;
+    DrawText(TextFormat("BLANCS\n%02d:%02d", whiteM, whiteS), offsetX - MeasureText("BLANCS", FONT_SIZE) - TEXT_PADDING, centerTextY, FONT_SIZE, whiteColor); 
 
     int blackM = (int)board->timer.blackTime / 60;
     int blackS = (int)board->timer.blackTime % 60;
-    Color blackColor = (currentTurn == 1) ? RAYWHITE : DARKGRAY;
-    DrawText(TextFormat("NOIRS\n%02d:%02d", blackM, blackS), offsetX + boardW + TEXT_PADDING, centerTextY, FONT_SIZE, blackColor); // Affiche le timer des Noirs
+    Color blackColor = (currentTurn == 1 && board->state == STATE_PLAYING) ? RAYWHITE : DARKGRAY;
+    DrawText(TextFormat("NOIRS\n%02d:%02d", blackM, blackS), offsetX + boardW + TEXT_PADDING, centerTextY, FONT_SIZE, blackColor); 
+    
+    // AFFICHAGE ÉCRAN FIN DE PARTIE 
+    if (board->state == STATE_GAMEOVER)
+    {
+        int centerW = screenW / 2;
+        int centerH = screenH / 2;
+        
+        // Fond semi-transparent
+        DrawRectangle(0, 0, screenW, screenH, Fade(BLACK, 0.8f)); 
+        
+        const char *winnerName = (board->winner == 0) ? "BLANCS" : "NOIRS";
+        const char *winnerText = TextFormat("VICTOIRE DES %s !", winnerName);
+        const char *menuText = "CLIQUEZ POUR REJOUER";
+        
+        int wWidth = MeasureText(winnerText, 60);
+        int mWidth = MeasureText(menuText, 30);
+        
+        // Affichage du gagnant
+        DrawText(winnerText, centerW - wWidth/2, centerH - 100, 60, GREEN);
+        
+        // Bouton/Texte REJOUER
+        DrawText(menuText, centerW - mWidth/2, centerH, 30, YELLOW);
+        DrawRectangleLines(centerW - mWidth/2 - 10, centerH - 5, mWidth + 20, 40, YELLOW); // Cadre pour le bouton
+        
+        const char *quitText = "Appuyer sur ECHAP pour quitter";
+        int qWidth = MeasureText(quitText, 20);
+        DrawText(quitText, centerW - qWidth/2, centerH + 100, 20, RAYWHITE);
+    }
 }
