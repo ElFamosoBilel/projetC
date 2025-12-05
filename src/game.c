@@ -10,6 +10,9 @@ extern int gTileTextureCount;
 int selectedX = -1;
 int selectedY = -1;
 int currentTurn = 0; // 0 = Blancs, 1 = Noirs
+bool gameOver = false;
+int winner = -1; // 0 = Blancs, 1 = Noirs
+
 
 // --- 2. FONCTIONS UTILITAIRES (Helpers) ---
 
@@ -94,36 +97,39 @@ void GameInit(Board *board)
             Tile *t = &board->tiles[y][x];
             TileClear(t);
 
-            // Sol
             int groundIndex = (x + y) % 2;
             TilePush(t, groundIndex);
 
-            // Pions
-            if (y == 1) TilePush(t, 7); // Noir
-            if (y == 6) TilePush(t, 6); // Blanc
+            if (y == 1) TilePush(t, 7); 
+            if (y == 6) TilePush(t, 6);
 
-            // Nobles Noirs
             if (y == 0)
             {
-                if (x == 0 || x == 7) TilePush(t, 13); // Tour
-                if (x == 1 || x == 6) TilePush(t, 3);  // Cavalier
-                if (x == 2 || x == 5) TilePush(t, 5);  // Fou
-                if (x == 3) TilePush(t, 9);            // Reine
-                if (x == 4) TilePush(t, 11);           // Roi
+                if (x == 0 || x == 7) TilePush(t, 13); 
+                if (x == 1 || x == 6) TilePush(t, 3);  
+                if (x == 2 || x == 5) TilePush(t, 5);  
+                if (x == 3) TilePush(t, 9);            
+                if (x == 4) TilePush(t, 11);           
             }
-            // Nobles Blancs
             if (y == 7)
             {
-                if (x == 0 || x == 7) TilePush(t, 12); // Tour
-                if (x == 1 || x == 6) TilePush(t, 2);  // Cavalier
-                if (x == 2 || x == 5) TilePush(t, 4);  // Fou
-                if (x == 3) TilePush(t, 8);            // Reine
-                if (x == 4) TilePush(t, 10);           // Roi
+                if (x == 0 || x == 7) TilePush(t, 12);
+                if (x == 1 || x == 6) TilePush(t, 2);
+                if (x == 2 || x == 5) TilePush(t, 4);
+                if (x == 3) TilePush(t, 8);
+                if (x == 4) TilePush(t, 10);
             }
         }
     }
-    board->timer.whiteTime = 600.0f;
-    board->timer.blackTime = 600.0f;
+
+    board->timer.whiteTime = 15.0f; // ex : 10 min
+    board->timer.blackTime = 15.0f;
+
+    gameOver = false;
+    winner = -1;
+    selectedX = -1;
+    selectedY = -1;
+    currentTurn = 0;
 }
 
 // --- 4. MISE À JOUR (LOGIQUE) ---
@@ -136,9 +142,29 @@ void GameUpdate(Board *board, float dt)
         if (board->timer.blackTime > 0.0f) board->timer.blackTime -= dt;
     }
 
-    if (board->timer.whiteTime <= 0.0f || board->timer.blackTime <= 0.0f) {
-        TraceLog(LOG_WARNING, "GAME OVER - Temps écoulé !");
+    // --- TIMER ---
+    if (!gameOver)
+    {
+        if (currentTurn == 0)
+            board->timer.whiteTime -= dt;
+        else
+            board->timer.blackTime -= dt;
+
+        if (board->timer.whiteTime <= 0.0f)
+        {
+            board->timer.whiteTime = 0.0f;
+            winner = 1; // noirs gagnent
+            gameOver = true;
+        }
+
+        if (board->timer.blackTime <= 0.0f)
+        {
+            board->timer.blackTime = 0.0f;
+            winner = 0; // blancs gagnent
+            gameOver = true;
+        }
     }
+
 
     // Gestion Souris
     if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
@@ -158,6 +184,11 @@ void GameUpdate(Board *board, float dt)
 
         int x = (int)((m.x - offsetX) / tileSize);
         int y = (int)((m.y - offsetY) / tileSize);
+        if (gameOver)
+        {
+            TraceLog(LOG_INFO, "Partie terminée - aucun coup possible");
+            return; // ← on sort, plus de mouvement possible
+        }
 
         if (x >= 0 && x < BOARD_COLS && y >= 0 && y < BOARD_ROWS)
         {
@@ -315,7 +346,20 @@ void GameUpdate(Board *board, float dt)
             selectedY = -1;
         }
     }
+
+
 } // <--- C'EST CELLE-LA QUI MANQUAIT CHEZ JULES !
+
+void GameReset(Board *board)
+{
+    GameInit(board);
+    gameOver = false;
+    winner = -1;
+    currentTurn = 0;
+    selectedX = -1;
+    selectedY = -1;
+}
+
 
 // --- 5. DESSIN DU JEU ---
 void GameDraw(const Board *board)
@@ -363,4 +407,16 @@ void GameDraw(const Board *board)
     int blackS = (int)board->timer.blackTime % 60;
     Color blackColor = (currentTurn == 1) ? BLUE : DARKGRAY;
     DrawText(TextFormat("NOIRS\n%02d:%02d", blackM, blackS), offsetX + boardW + TEXT_PADDING, centerTextY, FONT_SIZE, blackColor);
+
+    if (gameOver)
+    {
+        const char *text = (winner == 0) ? "VICTOIRE DES BLANCS" : "VICTOIRE DES NOIRS";
+        int size = 60;
+        DrawText(text,
+                GetScreenWidth()/2 - MeasureText(text, size)/2,
+                GetScreenHeight()/2 - size/2,
+                size,
+                RED);
+    }
+
 }
