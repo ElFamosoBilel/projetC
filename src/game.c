@@ -84,6 +84,8 @@ void GameInit(Board *board)
             }
         }
     }
+    board->timer.whiteTime = 600.0f;
+    board->timer.blackTime = 600.0f;
 }
 // Renvoie 0 pour Blanc, 1 pour Noir, et -1 si ce n'est pas une pièce (sol)
 static int GetPieceColor(int textureID)
@@ -99,7 +101,24 @@ static int GetPieceColor(int textureID)
 // --- 4. MISE À JOUR (LOGIQUE) ---
 void GameUpdate(Board *board, float dt)
 {
-    (void)dt; // On ignore dt pour l'instant
+
+    if (currentTurn == 0) // si c'est le tour des BLancs
+    {
+        if (board->timer.whiteTime > 0.0f) {
+            board->timer.whiteTime -= dt;
+        }  
+    }
+    else // si c'est le tour des Noirs
+    {
+        if (board->timer.whiteTime > 0.0f) {
+            board->timer.blackTime -= dt;
+        }
+    }
+
+    if (board->timer.whiteTime <= 0.0f || board->timer.blackTime <= 0.0f)
+    {
+        TraceLog(LOG_WARNING, "GAME OVER - Temps écoulé !");
+    }
 
     if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
     {
@@ -242,7 +261,12 @@ void GameDraw(const Board *board)
     int offsetX = (screenW - boardW) / 2;
     int offsetY = (screenH - boardH) / 2;
 
-    // Dessin du plateau
+    const int FONT_SIZE = 30; // taille de la police
+    const int TEXT_PADDING = 20; // marge entre le plateau et le texte
+
+    // calcul ed la position verticale centrée
+    int centerTextY = offsetY + boardH / 2 - FONT_SIZE / 2;
+    // Dessin du plateau  
     for (int y = 0; y < BOARD_ROWS; y++)
     {
         for (int x = 0; x < BOARD_COLS; x++)
@@ -268,6 +292,31 @@ void GameDraw(const Board *board)
                 );
             }
             
+            // Temps des blancs à gauche du plateau
+            int whiteM = (int)board->timer.whiteTime / 60;
+            int whiteS = (int)board->timer.whiteTime % 60;
+            Color whiteColor = (currentTurn == 0) ? BLUE : DARKGRAY; // Met en évidence le joueur qui doit jouer
+            char whiteText[32];
+            TextFormat("BLANCS\n%02d:%02d", whiteM, whiteS, whiteText); // \n pour mettre a la ligne
+            int whiteTextWidth = MeasureText("BLANCS", FONT_SIZE);
+
+            DrawText(TextFormat("BLANCS\n%02d:%02d", whiteM, whiteS),
+                    offsetX - whiteTextWidth - TEXT_PADDING,
+                    centerTextY,
+                    FONT_SIZE, whiteColor);
+
+            // Temps des noirs à droite du plateau
+            int blackM = (int)board->timer.blackTime / 60;
+            int blackS = (int)board->timer.blackTime % 60;
+            Color blackColor = (currentTurn == 1) ? BLUE : DARKGRAY; // Met en évidence le joueur qui doit jouer
+
+            DrawText(TextFormat("NOIRS\n%02d:%02d", blackM, blackS),
+                    offsetX + boardW + TEXT_PADDING,
+                    centerTextY,
+                    FONT_SIZE, blackColor);
+            
+
+
             // Dessin de la sélection (Le cadre vert)
             // On le dessine APRES les textures pour qu'il soit par dessus
             if (x == selectedX && y == selectedY)

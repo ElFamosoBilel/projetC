@@ -14,9 +14,16 @@ typedef struct
     int layerCount;             // nombre de couches utilisées
 } Tile;
 
+typedef struct 
+{
+    float whiteTime; // Temps restant pout les Blancs (en secondes)
+    float blackTime; // Temps restant pout les Noirs (en secondes)
+} Timer;
+
 typedef struct
 {
     Tile tiles[BOARD_ROWS][BOARD_COLS];
+    Timer timer; 
 } Board;
 
 void GameInit(Board *board);

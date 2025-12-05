@@ -45,9 +45,6 @@ int main(void)
 
         GameDraw(&board);
 
-        double time = GetTime();
-        DrawText(TextFormat("Time : %.2f", time), 170, 10, 20, GREEN);
-
         EndDrawing();
     }
 
