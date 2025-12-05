@@ -97,6 +97,54 @@ static int GetPieceColor(int textureID)
     // Si l'ID est Impair (ex: 3, 5, 7) -> Noir (1)
     return (textureID % 2 == 0) ? 0 : 1;
 }
+// Vérifie si le chemin est libre (utile pour Fou/Reine/Tour)
+// On utilise board pour accéder à l'ensemble des tuiles
+static bool IsPathClear(const Board *board, int startX, int startY, int endX, int endY){
+    // Déplacement horizontal
+    if (startY == endY)
+    {
+        int step = (endX > startX) ? 1 : -1; // 1 pour aller vers la droite, -1 pour aller vers la gauche
+        for (int x = startX + step; x != endX; x += step)
+        {
+            if (board->tiles[startY][x].layerCount > 1)
+            {
+                return false; //Obstacle trouvé
+            }
+        }
+    }
+    // Déplacement vertical
+    else if (startX == endX)
+    {
+        int step = (endY > startY) ? 1 : -1; // 1 pour aller vers le bas, -1 pour aller vers le haut
+        for (int y = startY + step; y != endY; y += step)
+        {
+            if (board->tiles[y][startX].layerCount > 1)
+            {
+                return false;
+            }
+        }
+    }
+    // Déplacement diagonal
+    else if (abs(endX - startX) == abs(endY - startY))
+    {
+        int stepX = (endX > startX) ? 1 : -1; // Direction X 1 = droite -1 = gauche
+        int stepY = (endY > startY) ? 1 : -1; // Direction Y 1 = bas -1 = haut
+
+        int x = startX + stepX;
+        int y = startY + stepY;
+
+        while (x != endX)
+        {
+            if (board->tiles[y][x].layerCount > 1)
+            {
+                return false; // Obstacle rencontré
+            }
+            x += stepX;
+            y += stepY;
+        }
+    }
+    return true; // Le chemin est libre
+}
 
 // --- 4. MISE À JOUR (LOGIQUE) ---
 void GameUpdate(Board *board, float dt)
@@ -110,7 +158,7 @@ void GameUpdate(Board *board, float dt)
     }
     else // si c'est le tour des Noirs
     {
-        if (board->timer.whiteTime > 0.0f) {
+        if (board->timer.blackTime > 0.0f) {
             board->timer.blackTime -= dt;
         }
     }
@@ -153,7 +201,7 @@ void GameUpdate(Board *board, float dt)
                 // S'il y a une pièce (couche > 1)
                 if (clickedTile->layerCount > 1) 
                 {
-                    // On vérifie la couleur
+                    // On vérifie la pièce et la couleur
                     int pieceID = clickedTile->layers[clickedTile->layerCount - 1];
                     int pieceColor = GetPieceColor(pieceID);
 
@@ -175,63 +223,171 @@ void GameUpdate(Board *board, float dt)
             {
                 bool moveAllowed = false;
 
+                Tile *oldTile = &board->tiles[selectedY][selectedX];
+                int pieceID = oldTile->layers[oldTile->layerCount - 1];
+
+                int startX = selectedX;
+                int startY = selectedY;
+                int endX = x;
+                int endY = y;
+
+                // Mouvement absolu
+                int dx = endX - startX;
+                int dy = endY - startY;
+
                 // A. On reclique sur soi-même -> Annulation
-                if (x == selectedX && y == selectedY)
+                if (dx == 0 && dy == 0)
                 {
                     selectedX = -1;
                     selectedY = -1;
                     TraceLog(LOG_INFO, "Annulation");
+                    return; // Sort de la fonction pour ne pas executer le reste
                 }
-                else
+                
+                // --- LOGIQUE DES PIÈCES ---
+                // Tour (IDs 12:Blanche, 13:Noire)
+                if (pieceID == 12 || pieceID == 13)
                 {
-                    // B. Analyse de la cible
-                    
-                    // Scénario 1 : La case est VIDE (Juste le sol)
-                    if (clickedTile->layerCount == 1)
+                    // Est-ce un mouvement en ligne droite (horizontal ou vertical) ?
+                    if ((dx != 0 && dy == 0) || (dx == 0 && dy != 0))
+                    {
+                        // Le chemin est-il libre d'obstacles ?
+                        if (IsPathClear(board, startX, startY, endX, endY))
+                        {
+                            moveAllowed = true;
+                        }
+                    }
+                }
+
+                // Fou (IDs 4:Blanc, 5:Noir)
+                else if (pieceID == 4 || pieceID == 5)
+                {
+                    // Mouvement diagonale ?
+                    if (abs(dx) == abs(dy) && dx != 0) // dx != 0 pour enlever le non-mouvement
+                    {
+                        // Chemin libre ?
+                        if (IsPathClear(board, startX, startY, endX, endY))
+                        {
+                            moveAllowed = true;
+                        }
+                    }
+                }
+
+                // Reine (IDs 8:Blanche, 9:Noire)
+                else if (pieceID == 8 || pieceID == 9)
+                {
+                    if ((dx != 0 && dy == 0) || (dx == 0 && dy != 0) || (abs(dx) == abs(dy)))
+                    {
+                        // Chemin libre ?
+                        if (IsPathClear(board, startX, startY, endX, endY))
+                        {
+                            moveAllowed = true;
+                        }
+                    }
+                }
+
+                // Roi (IDs 10:Blanc, 11:Noir)
+                else if (pieceID == 10 || pieceID == 11)
+                {
+                    //Mouvement d'une seule case dans n'importe quelle direction
+                    if (abs(dx) <= 1 && abs(dy) <= 1 && (dx !=0 || dy != 0))
                     {
                         moveAllowed = true;
                     }
-                    // Scénario 2 : La case est OCCUPÉE (Bagarre ?)
-                    else if (clickedTile->layerCount > 1)
+                }
+
+                // Cavalier (IDs 2:Blanc, 3:Noir)
+                else if (pieceID == 2 || pieceID == 3)
+                {
+                    // Mouvement en L
+                    if ((abs(dx) == 1 && abs(dy) == 2) || (abs(dx) == 2 && abs(dy) == 1))
+                    {
+                        // Saute pas dessus les autres donc pas besoin de IsPathClear
+                        moveAllowed = true;
+                    }
+                }
+
+                // Pion (IDs 6:Blanc, 7:Noir) 
+                else if (pieceID == 6 || pieceID == 7)
+                {
+                    int direction = (currentTurn == 0) ? -1 : 1; 
+                    int initialRow = (currentTurn == 0) ? 6 : 1;
+                    // Capture en diagonale
+                    if (abs(dx) == 1 && dy == direction)
+                    {
+                        int targetID = clickedTile->layers[clickedTile->layerCount - 1];
+                        int targetColor = GetPieceColor(targetID);
+                        // Case occupée par un ennemi
+                        if (clickedTile->layerCount > 1 && targetColor != -1 && targetColor != currentTurn)
+                        {
+                            moveAllowed = true;
+                        }
+                    }
+                    // Avance de deux cases (uniquement au départ) et chemin libre/cible vide
+                    // Avance vertical
+                    else if (dx == 0) 
+                    {
+                        // Avance d'une case
+                        if (dy == direction && clickedTile->layerCount == 1) 
+                        {
+                            moveAllowed = true;
+                        }
+                        // Avance de 2 cases
+                        else if (dy == 2 * direction && startY == initialRow && clickedTile->layerCount == 1)
+                        {
+                            // Vérifie que la case intermédiaire est aussi vide
+                            Tile *midTile = &board->tiles[startY + direction][startX];
+                            if (midTile->layerCount == 1)
+                            {
+                                moveAllowed = true;
+                            }
+                        }
+                    }
+                }
+
+                if (moveAllowed)
+                {
+                    // Vérifie la case
+                    if (clickedTile->layerCount > 1) // La case est occupée
                     {
                         int targetID = clickedTile->layers[clickedTile->layerCount - 1];
                         int targetColor = GetPieceColor(targetID);
 
-                        // Si c'est un ENNEMI
-                        if (targetColor != -1 && targetColor != currentTurn)
+                        // Si la pièce est un alliée, le mouvement devient invalide
+                        if (targetColor != -1 && targetColor == currentTurn)
                         {
-                            TraceLog(LOG_INFO, "BAGARRE ! Piece adverse eliminee.");
-                            
-                            // ON MANGE LA PIÈCE (On vide la case cible)
-                            TilePop(clickedTile); 
-                            
-                            moveAllowed = true;
+                            TraceLog(LOG_INFO, "Mouvement invalide: la case contient déjà une de vos pièces.");
+                            moveAllowed = false; // Annule le mouvement
                         }
-                        else
+                        // Si la pièce est un ennemie
+                        else if (targetColor != -1 && targetColor != currentTurn)
                         {
-                            TraceLog(LOG_WARNING, "Impossible : Case bloquee par un ami.");
+                            TraceLog(LOG_WARNING, "BAGARRE ! Piece adverse eliminee.");
+                            TilePop(clickedTile); // On mange la pièce
                         }
                     }
+                }
+                // C. Exécution du mouvement
+                if (moveAllowed)
+                {
+                    // 1. On prend notre pièce de l'ancienne case
+                    int objID = TilePop(oldTile); 
+                    
+                    // 2. On la pose sur la nouvelle case
+                    TilePush(clickedTile, objID);
 
-                    // C. Exécution du mouvement
-                    if (moveAllowed)
-                    {
-                        // 1. On prend notre pièce de l'ancienne case
-                        Tile *oldTile = &board->tiles[selectedY][selectedX];
-                        int objID = TilePop(oldTile); 
-                        
-                        // 2. On la pose sur la nouvelle case
-                        TilePush(clickedTile, objID);
-
-                        // 3. Fin du tour
-                        selectedX = -1;
-                        selectedY = -1;
-                        
-                        // Changement de joueur (0->1 ou 1->0)
-                        currentTurn = 1 - currentTurn; 
-                        
-                        TraceLog(LOG_INFO, "Coup valide. Au suivant !");
-                    }
+                    // 3. Fin du tour
+                    selectedX = -1;
+                    selectedY = -1;
+                    
+                    // Changement de joueur (0->1 ou 1->0)
+                    currentTurn = 1 - currentTurn; 
+                    
+                    TraceLog(LOG_INFO, "Coup valide. Au suivant !");
+                }
+                else
+                {
+                    TraceLog(LOG_WARNING, "Mouvement invalide pour cette piece");
                 }
             }
         }
@@ -242,7 +398,6 @@ void GameUpdate(Board *board, float dt)
             selectedY = -1;
         }
     }
-}
 
 // --- 5. DESSIN DU JEU ---
 void GameDraw(const Board *board)
