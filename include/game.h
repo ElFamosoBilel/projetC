@@ -14,6 +14,13 @@ typedef struct
     int layerCount;             // nombre de couches utilisées
 } Tile;
 
+typedef enum // Etat possible du jeu
+{
+    STATE_PLAYING, // Etat : En jeu
+    STATE_MENU, // Etat : Menu
+    STATE_GAMEOVER // Etat : Fin du jeu
+} GameState;
+
 typedef struct 
 {
     float whiteTime; // Temps restant pout les Blancs (en secondes)
@@ -24,6 +31,8 @@ typedef struct
 {
     Tile tiles[BOARD_ROWS][BOARD_COLS];
     Timer timer; 
+    GameState state;
+    int winner; // 0 = Blanc, 1 = Noir, -1 = Non-défini
 } Board;
 
 void GameInit(Board *board);
