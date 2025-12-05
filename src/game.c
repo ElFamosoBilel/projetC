@@ -1,5 +1,6 @@
 #include "game.h"
 #include <stdio.h> // Pour TraceLog et printf
+#include <stdlib.h>
 
 // --- 0. IMPORT EXTERNE ---
 extern Texture2D gTileTextures[]; 
@@ -108,7 +109,7 @@ static bool IsPathClear(const Board *board, int startX, int startY, int endX, in
         {
             if (board->tiles[startY][x].layerCount > 1)
             {
-                return false; //Obstacle trouvé
+                return false; // Obstacle trouvé
             }
         }
     }
@@ -398,6 +399,7 @@ void GameUpdate(Board *board, float dt)
             selectedY = -1;
         }
     }
+}
 
 // --- 5. DESSIN DU JEU ---
 void GameDraw(const Board *board)
