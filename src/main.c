@@ -7,12 +7,12 @@ int gTileTextureCount = 0;
 
 int main(void)
 {
-    // Permet de prendre la taille du moniteur
+    // Permet de prendre la taille du moniteur de l'utilisateur
     int screenW = GetMonitorWidth(0);
     int screenH = GetMonitorHeight(0);
 
     InitWindow(screenW, screenH, "Raylib Board Game");
-    ToggleFullscreen();
+    ToggleFullscreen(); // met en plein écran
 
     // Chargement des textures
     gTileTextures[0] = LoadTexture("assets/carreau_blanc.png");
@@ -31,19 +31,19 @@ int main(void)
     gTileTextures[13] = LoadTexture("assets/tour_noir.png");
     gTileTextureCount = 14;
     
-    Board board = {0};
-    GameInit(&board);
+    Board board = {0}; // Met tous les membres à 0
+    GameInit(&board); // Appelle le Gameinit de game
 
     while (!WindowShouldClose())
     {
-        float dt = GetFrameTime();
+        float dt = GetFrameTime(); // Temps écoulé depuis la derniere image
 
-        GameUpdate(&board, dt);
+        GameUpdate(&board, dt); // Appelle le GameUpdate de game
 
-        BeginDrawing();
-        ClearBackground(RAYWHITE);
+        BeginDrawing(); // Dessin
+        ClearBackground(BLACK);  // Le fond
 
-        GameDraw(&board);
+        GameDraw(&board); // Dessin l'échiquier et tout se qui va avec
 
         EndDrawing();
     }
@@ -55,5 +55,5 @@ int main(void)
     }
 
     CloseWindow();
-    return 0;
+    return 0; // Termine l'éxécution
 }
