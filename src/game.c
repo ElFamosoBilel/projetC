@@ -14,6 +14,7 @@ int currentTurn = 0; // 0 = Blancs, 1 = Noirs
 #define MAX_MOVES 64 // Taille maximale = toutes les cases
 static int possibleMoves[MAX_MOVES][2]; // 64 coups possibles, avec leur coordonnées X et Y
 static int possibleMoveCount = 0; // Initialise par défauts
+
 // --- 2. FONCTIONS UTILITAIRES (Helpers) ---
 
 static void TileClear(Tile *t) // initialise une case vide
@@ -106,7 +107,7 @@ static bool IsMoveValid(const Board *board, int startX, int startY, int endX, in
     int dy = endY - startY; 
     bool ruleMatch = false;
 
-    // A. VÉRIFICATION RÈGLES PHYSIQUES (basé sur votre code original)
+    // A. VÉRIFICATION RÈGLES PHYSIQUES
     if (pieceID == 12 || pieceID == 13) // Tour
     {
         if ((dx != 0 && dy == 0) || (dx == 0 && dy != 0))
@@ -217,6 +218,50 @@ static bool IsMoveValid(const Board *board, int startX, int startY, int endX, in
     return true; 
 }
 
+// --- NOUVEAU : FONCTION DE DÉTECTION D'ÉCHEC ---
+// Placée ICI pour être connue avant GameLogicUpdate
+static bool IsKingInCheck(const Board *board, int kingColor)
+{
+    int kingX = -1;
+    int kingY = -1;
+    int targetKingID = (kingColor == 0) ? 10 : 11; // 10=Blanc, 11=Noir
+
+    // 1. Trouver le Roi
+    for (int y = 0; y < BOARD_ROWS; y++) {
+        for (int x = 0; x < BOARD_COLS; x++) {
+            const Tile *t = &board->tiles[y][x];
+            if (t->layerCount > 1) {
+                if (t->layers[t->layerCount - 1] == targetKingID) {
+                    kingX = x;
+                    kingY = y;
+                }
+            }
+        }
+    }
+
+    // Sécurité si roi pas trouvé (ne devrait pas arriver)
+    if (kingX == -1 || kingY == -1) return false;
+
+    // 2. Chercher les menaces
+    for (int y = 0; y < BOARD_ROWS; y++) {
+        for (int x = 0; x < BOARD_COLS; x++) {
+            const Tile *t = &board->tiles[y][x];
+            if (t->layerCount <= 1) continue; // Case vide
+
+            int attackerID = t->layers[t->layerCount - 1];
+            int attackerColor = GetPieceColor(attackerID);
+
+            if (attackerColor == -1 || attackerColor == kingColor) continue; // Allié ou sol
+
+            // Si cet ennemi peut manger le roi -> ECHEC
+            if (IsMoveValid(board, x, y, kingX, kingY)) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 // --- 3. INITIALISATION DU JEU ---
 void GameInit(Board *board) // met en place l'échiquier
 {
@@ -313,6 +358,9 @@ static void GameLogicUpdate(Board *board, float dt)
                         selectedX = x;
                         selectedY = y;
                         TraceLog(LOG_INFO, "Selection OK"); 
+                        
+                        // Calcul des coups possibles pour l'affichage
+                        possibleMoveCount = 0;
                         possibleMoveCount = 0;
                         for (int py = 0; py < BOARD_ROWS; py++)
                         {
@@ -320,9 +368,19 @@ static void GameLogicUpdate(Board *board, float dt)
                             {
                                 if (IsMoveValid(board, selectedX, selectedY, px, py))
                                 {
-                                    possibleMoves[possibleMoveCount][0] = px; // Note la coordonnées X du coup possible
-                                    possibleMoves[possibleMoveCount][1] = py; // Note la coordonnées Y du coup possible
-                                    possibleMoveCount++; // Augmente le nombre de coup possible
+                                    // SIMULATION pour voir si le coup mettrait le roi en danger
+                                    Board tempBoard = *board;
+                                    Tile *sOld = &tempBoard.tiles[selectedY][selectedX];
+                                    Tile *sNew = &tempBoard.tiles[py][px];
+                                    int sPid = TilePop(sOld);
+                                    if(sNew->layerCount > 1) TilePop(sNew);
+                                    TilePush(sNew, sPid);
+                                    
+                                    if (!IsKingInCheck(&tempBoard, currentTurn)) {
+                                        possibleMoves[possibleMoveCount][0] = px; // Note la coordonnées X
+                                        possibleMoves[possibleMoveCount][1] = py; // Note la coordonnées Y
+                                        possibleMoveCount++; // Augmente le compteur
+                                    }
                                 }
                             }
                         }  
@@ -353,7 +411,7 @@ static void GameLogicUpdate(Board *board, float dt)
                 {
                     selectedX = -1;
                     selectedY = -1;
-                    possibleMoveCount = 0; // réinitialise une fois la sélection annulée
+                    possibleMoveCount = 0; // réinitialise
                     TraceLog(LOG_INFO, "Annulation");
                     return; 
                 }
@@ -384,46 +442,11 @@ static void GameLogicUpdate(Board *board, float dt)
                         if (IsPathClear(board, startX, startY, endX, endY)) moveAllowed = true;
                     }
                 }
-                else if (pieceID == 10 || pieceID == 11) // Roi
-{
-    // Déplacement normal
-    if (abs(dx) <= 1 && abs(dy) <= 1)
-        moveAllowed = true;
-
-    // --- ROQUE ---
-    else if (dy == 0 && (dx == 2 || dx == -2))
-    {
-        int rookX = (dx == 2) ? startX + 3 : startX - 4;
-        Tile *rookTile = (Tile*)&board->tiles[startY][rookX];
-
-        if (rookTile->layerCount > 1)
-        {
-            int rookID = rookTile->layers[rookTile->layerCount - 1];
-            bool correctRook =
-                (currentTurnColor == 0 && rookID == 12) ||
-                (currentTurnColor == 1 && rookID == 13);
-
-            if (correctRook)
-            {
-                int step = (dx > 0) ? 1 : -1;
-                bool pathClear = true;
-
-                for (int cx = startX + step; cx != rookX; cx += step)
+                // Roi
+                else if (pieceID == 10 || pieceID == 11)
                 {
-                    if (board->tiles[startY][cx].layerCount > 1)
-                    {
-                        pathClear = false;
-                        break;
-                    }
+                    if (abs(dx) <= 1 && abs(dy) <= 1) moveAllowed = true;
                 }
-
-                if (pathClear)
-                    moveAllowed = true;       // ← IMPORTANT pour l'affichage
-            }
-        }
-    }
-}
-
                 // Cavalier
                 else if (pieceID == 2 || pieceID == 3)
                 {
@@ -456,7 +479,7 @@ static void GameLogicUpdate(Board *board, float dt)
                         if (midTile->layerCount == 1) moveAllowed = true;
                     }
                 }
-               
+
                 // C. VÉRIFICATION FINALE (Case cible occupée par un ami ?)
                 if (moveAllowed)
                 {
@@ -470,52 +493,77 @@ static void GameLogicUpdate(Board *board, float dt)
                             TraceLog(LOG_INFO, "Bloqué par un ami.");
                             moveAllowed = false; 
                         }
-                        else if (targetColor != -1 && targetColor != currentTurn) // si y'a une pièce ennemi
-                        {
-                            TraceLog(LOG_INFO, "Capture !");
-                            
-                            // VÉRIFICATION ROI CAPTURÉ 
-                            if (targetID == 10 || targetID == 11) 
-                            {
-                                board->winner = currentTurn;
-                                board->state = STATE_GAMEOVER;
-                                TraceLog(LOG_INFO, "ROI CAPTURE ! PARTIE TERMINEE");
-                            }
-                            TilePop(clickedTile); // Mange l'ennemi
-                        }
                     }
                 }
 
-                // D. EXÉCUTION
+                // --- D. PROTECTION DU ROI (SIMULATION) ---
                 if (moveAllowed)
                 {
+                    // 1. On crée une copie du plateau
+                    Board tempBoard = *board; 
+
+                    // 2. On joue le coup sur la copie
+                    Tile *simOldTile = &tempBoard.tiles[startY][startX];
+                    Tile *simNewTile = &tempBoard.tiles[endY][endX];
+
+                    int simPieceID = TilePop(simOldTile); // Enlève départ
+                    if (simNewTile->layerCount > 1) {
+                        TilePop(simNewTile); // Enlève cible (mange)
+                    }
+                    TilePush(simNewTile, simPieceID); // Pose arrivée
+
+                    // 3. On vérifie si le Roi est en danger sur la copie
+                    if (IsKingInCheck(&tempBoard, currentTurn))
+                    {
+                        TraceLog(LOG_WARNING, "MOUVEMENT INTERDIT : Roi en echec !");
+                        moveAllowed = false;
+                    }
+                }
+
+                // E. EXÉCUTION
+                if (moveAllowed)
+                {
+                    // Capture
+                    if (clickedTile->layerCount > 1) {
+                        int targetID = clickedTile->layers[clickedTile->layerCount - 1];
+                        // VÉRIFICATION ROI CAPTURÉ (Normalement impossible avec la protection D, mais sécurité)
+                        if (targetID == 10 || targetID == 11) 
+                        {
+                            board->winner = currentTurn;
+                            board->state = STATE_GAMEOVER;
+                            TraceLog(LOG_INFO, "ROI CAPTURE ! PARTIE TERMINEE");
+                        }
+                        TilePop(clickedTile); // Mange l'ennemi
+                    }
+
                     int objID = TilePop(oldTile); 
                     TilePush(clickedTile, objID); 
 
                     selectedX = -1; 
                     selectedY = -1;
-                    possibleMoveCount = 0; // Réinitialise une fois le mouvement effectué
+                    possibleMoveCount = 0; // Réinitialise
 
                     if (board->state != STATE_GAMEOVER) // Ne change le tour que si la partie continue
                     {
                         currentTurn = 1 - currentTurn; // change le tour
                         TraceLog(LOG_INFO, "Coup valide.");
                     }
-                    // TraceLog(LOG_INFO, "Coup valide."); // Redondant avec la ligne précédente mais laissé pour cohérence avec le bloc original
                 }
                 else
                 {
+                    // Si clic invalide sur une pièce alliée -> on change la sélection
                     if (clickedTile->layerCount > 1)
                     {
                         int targetColor = GetPieceColor(clickedTile->layers[clickedTile->layerCount - 1]);
                         if (targetColor == currentTurn)
                         {
-                            selectedX = -1; // Force la réinitialisation pour relancer la sélection
+                            selectedX = -1; 
                             possibleMoveCount = 0;
-                            GameLogicUpdate(board, dt); // Permet de sélectionné la nouvelle pièce
-                            return; // Fin de la fonction
+                            GameLogicUpdate(board, dt); // Récursion pour sélectionner instantanément
+                            return; 
                         }
                     }
+                    TraceLog(LOG_WARNING, "Mouvement invalide");
                 }
             }
         }
@@ -523,6 +571,7 @@ static void GameLogicUpdate(Board *board, float dt)
         {
             selectedX = -1;
             selectedY = -1;
+            possibleMoveCount = 0;
         }
     }
 }
@@ -636,8 +685,7 @@ void GameDraw(const Board *board)
     }
 
     // Dessin des cases possibles
-
-    for (int i = 0; i < possibleMoveCount; i++) // Boucle pour faire la totalité des cases
+    for (int i = 0; i < possibleMoveCount; i++) 
     {
         int x = possibleMoves[i][0];
         int y = possibleMoves[i][1];
