@@ -1,17 +1,17 @@
 #include "game.h"
 #include <stdio.h> 
-#include <stdlib.h> 
+#include <stdlib.h>  // Pour la fonction (abs)
 
-// --- 0. IMPORT EXTERNE ---
+// IMPORT EXTERNE 
 extern Texture2D gTileTextures[]; 
 extern int gTileTextureCount; 
 
-// --- 1. VARIABLES GLOBALES ---
+// VARIABLES GLOBALES 
 int selectedX = -1; 
 int selectedY = -1; 
 int currentTurn = 0; // 0 = Blancs, 1 = Noirs
 
-// --- 2. FONCTIONS UTILITAIRES (Helpers) ---
+// FONCTIONS UTILITAIRES
 
 static void TileClear(Tile *t) 
 {
@@ -84,12 +84,12 @@ static bool IsPathClear(const Board *board, int startX, int startY, int endX, in
     return true; 
 }
 
-// --- 3. INITIALISATION DU JEU ---
+// INITIALISATION DU JEU
 void GameInit(Board *board) // met en place l'échiquier
 {
-    for (int y = 0; y < BOARD_ROWS; y++)
+    for (int y = 0; y < BOARD_ROWS; y++) // Lignes
     {
-        for (int x = 0; x < BOARD_COLS; x++)
+        for (int x = 0; x < BOARD_COLS; x++) // Colonnes
         {
             Tile *t = &board->tiles[y][x];
             TileClear(t); // vide la case
@@ -124,16 +124,17 @@ void GameInit(Board *board) // met en place l'échiquier
     }
     
     // Initialisation de l'état
-    board->timer.whiteTime = 600.0f; 
-    board->timer.blackTime = 600.0f;
-    board->state = STATE_PLAYING;
-    board->winner = -1;
+    board->timer.whiteTime = 600.0f; // 10 minutes pour le joueur Blanc
+    board->timer.blackTime = 600.0f; // 10 minutes pour le joueur Noir
+    board->state = STATE_MAIN_MENU; // Sur le menu par défaut
+    board->mode = MODE_NONE; // Aucun mode choisi par défaut
+    board->winner = -1; // Aucun gagnant défini
     currentTurn = 0; // Toujours commencer par les Blancs
-    selectedX = -1;
-    selectedY = -1;
+    selectedX = -1; // Aucune sélection
+    selectedY = -1; // Aucune sélection
 }
 
-// --- NOUVEAU : LOGIQUE DE JEU SEULEMENT ---
+// LOGIQUE DE JEU
 static void GameLogicUpdate(Board *board, float dt)
 {
     // Gestion Souris
@@ -141,7 +142,7 @@ static void GameLogicUpdate(Board *board, float dt)
     {
         Vector2 m = GetMousePosition(); 
 
-        // Calculs responsifs (inchangés)
+        // Calculs responsifs
         int screenW = GetScreenWidth(); 
         int screenH = GetScreenHeight(); 
         int tileSizeW = screenW / BOARD_COLS; 
@@ -159,7 +160,7 @@ static void GameLogicUpdate(Board *board, float dt)
         {
             Tile *clickedTile = &board->tiles[y][x];
 
-            // --- CAS 1 : SÉLECTION ---
+            // CAS 1 : SÉLECTION 
             if (selectedX == -1) 
             {
                 if (clickedTile->layerCount > 1) 
@@ -179,7 +180,7 @@ static void GameLogicUpdate(Board *board, float dt)
                     }
                 }
             }
-            // --- CAS 2 : ACTION ---
+            // CAS 2 : ACTION
             else 
             {
                 bool moveAllowed = false;
@@ -328,7 +329,45 @@ static void GameLogicUpdate(Board *board, float dt)
 // --- 4. MISE À JOUR (LOGIQUE) ---
 void GameUpdate(Board *board, float dt)
 {
-    if (board->state == STATE_PLAYING)
+    if (board->state == STATE_MAIN_MENU)
+    {
+        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
+        {
+            Vector2 m = GetMousePosition();
+            int screenW = GetScreenWidth();
+            int screenH = GetScreenHeight();
+
+            int buttonWidth = 300;
+            int buttonHeight = 60;
+            int centerW = screenW / 2;
+            int startY = screenH / 2 - 100;
+
+            Rectangle rectPvP = { (float)centerW - buttonWidth / 2, (float)startY, (float)buttonWidth, (float)buttonHeight };
+            Rectangle rectPvA = { (float)centerW - buttonWidth / 2, (float)startY + 80, (float)buttonWidth, (float)buttonHeight };
+            Rectangle rectQuit = { (float)centerW - buttonWidth / 2, (float)startY + 160, (float)buttonWidth, (float)buttonHeight };
+
+            if (CheckCollisionPointRec(m , rectPvP))
+            {
+                board->mode = MODE_PLAYER_VS_PLAYER;
+                board->state = STATE_PLAYING;
+                TraceLog(LOG_INFO, "Mode 1 vs 1 sélectionné. Début de la partie.");
+            }
+            
+            else if (CheckCollisionPointRec(m , rectPvA))
+            {
+                board->mode = MODE_PLAYER_VS_IA;
+                board->state = STATE_PLAYING;
+                TraceLog(LOG_INFO, "Mode vs IA sélectionné. Début de la partie.");
+            }
+            
+            else if (CheckCollisionPointRec(m , rectQuit))
+            {
+                CloseWindow();
+                TraceLog(LOG_INFO, "Quitter cliqué.");
+            }
+        }
+    }
+    else if (board->state == STATE_PLAYING)
     {
         // Gestion Timer
         if (currentTurn == 0) {
@@ -352,11 +391,11 @@ void GameUpdate(Board *board, float dt)
         }
         
         // GESTION ABANDON (FORFAIT)
-        if (IsKeyPressed(KEY_SPACE))
+        if (IsKeyPressed(KEY_F))
         {
             board->state = STATE_GAMEOVER;
             board->winner = 1 - currentTurn; // Le gagnant est l'adversaire
-            TraceLog(LOG_WARNING, "Le joueur %s a déclaré forfait (Espace).", (currentTurn == 0) ? "BLANC" : "NOIR");
+            TraceLog(LOG_WARNING, "Le joueur %s a déclaré forfait (F).", (currentTurn == 0) ? "BLANC" : "NOIR");
             return;
         }
         // Logique de jeu (clics de pièces)
@@ -403,62 +442,104 @@ void GameDraw(const Board *board)
     const int TEXT_PADDING = 20; 
 
     int centerTextY = offsetY + boardH / 2 - FONT_SIZE / 2;
-
-    // Dessin du plateau et des pièces
-    for (int y = 0; y < BOARD_ROWS; y++)
-    {
-        for (int x = 0; x < BOARD_COLS; x++)
-        {
-            const Tile *t = &board->tiles[y][x];
-            int drawX = offsetX + x * tileSize;
-            int drawY = offsetY + y * tileSize;
-
-            for (int i = 0; i < t->layerCount; i++)
-            {
-                int idx = t->layers[i];
-                DrawTexturePro(gTileTextures[idx],(Rectangle){0, 0, gTileTextures[idx].width, gTileTextures[idx].height},(Rectangle){drawX, drawY, tileSize, tileSize},(Vector2){0,0},0,WHITE); 
-            }
-            
-            if (x == selectedX && y == selectedY) DrawRectangleLines(drawX, drawY, tileSize, tileSize, GREEN); 
-        }
-    }
-
-    // Dessin des Timers
-    int whiteM = (int)board->timer.whiteTime / 60;
-    int whiteS = (int)board->timer.whiteTime % 60;
-    Color whiteColor = (currentTurn == 0 && board->state == STATE_PLAYING) ? RAYWHITE : DARKGRAY;
-    DrawText(TextFormat("BLANCS\n%02d:%02d", whiteM, whiteS), offsetX - MeasureText("BLANCS", FONT_SIZE) - TEXT_PADDING, centerTextY, FONT_SIZE, whiteColor); 
-
-    int blackM = (int)board->timer.blackTime / 60;
-    int blackS = (int)board->timer.blackTime % 60;
-    Color blackColor = (currentTurn == 1 && board->state == STATE_PLAYING) ? RAYWHITE : DARKGRAY;
-    DrawText(TextFormat("NOIRS\n%02d:%02d", blackM, blackS), offsetX + boardW + TEXT_PADDING, centerTextY, FONT_SIZE, blackColor); 
-    
-    // AFFICHAGE ÉCRAN FIN DE PARTIE 
-    if (board->state == STATE_GAMEOVER)
+    if (board->state == STATE_MAIN_MENU) // NOUVEAU : Dessin du menu principal
     {
         int centerW = screenW / 2;
         int centerH = screenH / 2;
+        int buttonWidth = 300;
+        int buttonHeight = 60;
+        int buttonFontSize = 30;
+        int startY = centerH - 100;
+
+        // Titre
+        const char *titleText = "JEU D'ÉCHECS C";
+        int titleWidth = MeasureText(titleText, 50);
+        DrawText(titleText, centerW - titleWidth/2, startY - 100, 50, RAYWHITE);
         
-        // Fond semi-transparent
-        DrawRectangle(0, 0, screenW, screenH, Fade(BLACK, 0.8f)); 
+        // Boutons
         
-        const char *winnerName = (board->winner == 0) ? "BLANCS" : "NOIRS";
-        const char *winnerText = TextFormat("VICTOIRE DES %s !", winnerName);
-        const char *menuText = "CLIQUEZ POUR REJOUER";
+        // 1 vs 1
+        Rectangle rectPvP = { (float)centerW - buttonWidth/2, (float)startY, (float)buttonWidth, (float)buttonHeight };
+        DrawRectangleRec(rectPvP, LIGHTGRAY);
+        DrawRectangleLinesEx(rectPvP, 3, RAYWHITE);
+        const char *textPvP = "Jouer (1 vs 1)";
+        int textPvPWidth = MeasureText(textPvP, buttonFontSize);
+        DrawText(textPvP, centerW - textPvPWidth/2, startY + (buttonHeight - buttonFontSize) / 2, buttonFontSize, BLACK);
+
+        // Contre IA
+        Rectangle rectPvA = { (float)centerW - buttonWidth/2, (float)startY + 80, (float)buttonWidth, (float)buttonHeight };
+        DrawRectangleRec(rectPvA, GRAY);
+        DrawRectangleLinesEx(rectPvA, 3, RAYWHITE);
+        const char *textPvA = "Jouer contre IA";
+        int textPvAWidth = MeasureText(textPvA, buttonFontSize);
+        DrawText(textPvA, centerW - textPvAWidth/2, startY + 80 + (buttonHeight - buttonFontSize) / 2, buttonFontSize, DARKGRAY);
+
+        // Quitter
+        Rectangle rectQuit = { (float)centerW - buttonWidth/2, (float)startY + 160, (float)buttonWidth, (float)buttonHeight };
+        DrawRectangleRec(rectQuit, RED);
+        DrawRectangleLinesEx(rectQuit, 3, RAYWHITE);
+        const char *textQuit = "Quitter";
+        int textQuitWidth = MeasureText(textQuit, buttonFontSize);
+        DrawText(textQuit, centerW - textQuitWidth/2, startY + 160 + (buttonHeight - buttonFontSize) / 2, buttonFontSize, RAYWHITE);
+    }
+    else
+    {
+        // Dessin du plateau et des pièces
+        for (int y = 0; y < BOARD_ROWS; y++)
+        {
+            for (int x = 0; x < BOARD_COLS; x++)
+            {
+                const Tile *t = &board->tiles[y][x];
+                int drawX = offsetX + x * tileSize;
+                int drawY = offsetY + y * tileSize;
+
+                for (int i = 0; i < t->layerCount; i++)
+                {
+                    int idx = t->layers[i];
+                    DrawTexturePro(gTileTextures[idx],(Rectangle){0, 0, gTileTextures[idx].width, gTileTextures[idx].height},(Rectangle){drawX, drawY, tileSize, tileSize},(Vector2){0,0},0,WHITE); 
+                }
+                
+                if (x == selectedX && y == selectedY) DrawRectangleLines(drawX, drawY, tileSize, tileSize, GREEN); 
+            }
+        }
+
+        // Dessin des Timers
+        int whiteM = (int)board->timer.whiteTime / 60;
+        int whiteS = (int)board->timer.whiteTime % 60;
+        Color whiteColor = (currentTurn == 0 && board->state == STATE_PLAYING) ? RAYWHITE : DARKGRAY;
+        DrawText(TextFormat("BLANCS\n%02d:%02d", whiteM, whiteS), offsetX - MeasureText("BLANCS", FONT_SIZE) - TEXT_PADDING, centerTextY, FONT_SIZE, whiteColor); 
+
+        int blackM = (int)board->timer.blackTime / 60;
+        int blackS = (int)board->timer.blackTime % 60;
+        Color blackColor = (currentTurn == 1 && board->state == STATE_PLAYING) ? RAYWHITE : DARKGRAY;
+        DrawText(TextFormat("NOIRS\n%02d:%02d", blackM, blackS), offsetX + boardW + TEXT_PADDING, centerTextY, FONT_SIZE, blackColor); 
         
-        int wWidth = MeasureText(winnerText, 60);
-        int mWidth = MeasureText(menuText, 30);
-        
-        // Affichage du gagnant
-        DrawText(winnerText, centerW - wWidth/2, centerH - 100, 60, GREEN);
-        
-        // Bouton/Texte REJOUER
-        DrawText(menuText, centerW - mWidth/2, centerH, 30, YELLOW);
-        DrawRectangleLines(centerW - mWidth/2 - 10, centerH - 5, mWidth + 20, 40, YELLOW); // Cadre pour le bouton
-        
-        const char *quitText = "Appuyer sur ECHAP pour quitter";
-        int qWidth = MeasureText(quitText, 20);
-        DrawText(quitText, centerW - qWidth/2, centerH + 100, 20, RAYWHITE);
+        // AFFICHAGE ÉCRAN FIN DE PARTIE 
+        if (board->state == STATE_GAMEOVER)
+        {
+            int centerW = screenW / 2;
+            int centerH = screenH / 2;
+            
+            // Fond semi-transparent
+            DrawRectangle(0, 0, screenW, screenH, Fade(BLACK, 0.8f)); 
+            
+            const char *winnerName = (board->winner == 0) ? "BLANCS" : "NOIRS";
+            const char *winnerText = TextFormat("VICTOIRE DES %s !", winnerName);
+            const char *menuText = "CLIQUEZ POUR REJOUER";
+            
+            int wWidth = MeasureText(winnerText, 60);
+            int mWidth = MeasureText(menuText, 30);
+            
+            // Affichage du gagnant
+            DrawText(winnerText, centerW - wWidth/2, centerH - 100, 60, GREEN);
+            
+            // Bouton/Texte REJOUER
+            DrawText(menuText, centerW - mWidth/2, centerH, 30, YELLOW);
+            DrawRectangleLines(centerW - mWidth/2 - 10, centerH - 5, mWidth + 20, 40, YELLOW); // Cadre pour le bouton
+            
+            const char *quitText = "Appuyer sur ECHAP pour quitter";
+            int qWidth = MeasureText(quitText, 20);
+            DrawText(quitText, centerW - qWidth/2, centerH + 100, 20, RAYWHITE);
+        }
     }
 }
