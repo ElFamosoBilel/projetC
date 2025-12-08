@@ -7,6 +7,11 @@
 #define BOARD_COLS 8
 #define BOARD_ROWS 8
 #define MAX_LAYERS 4
+#define INFINITY 2000000
+#define MAX_MOVES 256
+#define BOARD_SIZE 8
+Move moveList[MAX_MOVES];
+#define ID_IA 1
 
 typedef struct
 {
@@ -23,12 +28,18 @@ typedef enum // Etat possible du jeu
 
 typedef enum
 {
-    MODE_NONE,
+    MODE_NONE, // Aucun mode
     MODE_PLAYER_VS_PLAYER, // 1v1
     MODE_PLAYER_VS_IA // Contre IA
 } GameMode;
 
-
+typedef struct
+{
+    int startX, startY; // Ligne et colonne avant le mouvement
+    int endX, endY; // Après le mouvement
+    int movingPieceID; // Quel pièce est joué
+    int capturedPieceID; // Stocke la pièce mangé si y'en a une
+}Move;
 typedef struct 
 {
     float whiteTime; // Temps restant pout les Blancs (en secondes)
@@ -42,6 +53,7 @@ typedef struct
     GameState state;
     GameMode mode;
     int winner; // 0 = Blanc, 1 = Noir, -1 = Non-défini
+    Move move;
 } Board;
 
 void GameInit(Board *board);

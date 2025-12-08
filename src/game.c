@@ -84,6 +84,255 @@ static bool IsPathClear(const Board *board, int startX, int startY, int endX, in
     return true; 
 }
 
+// IA
+
+static int GenerateLegalMoves(const Board *board, Move movelist[])
+{
+    int count = 0;
+    int current_player = currentTurn; // 0 (Blanc) ou 1 (Noir)
+
+    // Pour chaque case du plateau
+    for (int startY = 0; startY < BOARD_SIZE; startY++)
+    {
+        for (int startX = 0; startX < BOARD_SIZE; startX++)
+        {
+            Tile *startTile = &board->tiles[startY][startX];
+            
+            // Si la case de départ n'a pas de pièce ou n'est pas la couleur du joueur actuel, ignorer
+            if (startTile->layerCount <= 1) continue; 
+            int pieceID = startTile->layers[startTile->layerCount - 1];
+            if (GetPieceColor(pieceID) != current_player) continue;
+
+            // Logique de mouvement par type de pièce
+            if (pieceID == 12 || pieceID == 13 || pieceID == 4 || pieceID == 5 || pieceID == 8 || pieceID == 9)
+            {
+                // Définir ici les directions possibles pour la pièce
+                int directions[8][2] = {
+                    {0, 1}, {0, -1}, {1, 0}, {-1, 0}, // Horizontal/Vertical (Tour, Reine)
+                    {1, 1}, {1, -1}, {-1, 1}, {-1, -1} // Diagonal (Fou, Reine)
+                };
+                int max_dirs = (pieceID == 12 || pieceID == 13) ? 4 : // Tour
+                               (pieceID == 4 || pieceID == 5) ? 4 : // Fou
+                               8; // Reine
+
+                for (int d = 0; d < max_dirs; d++)
+                {
+                    for (int step = 1; step < BOARD_SIZE; step++) // Parcours des pas
+                    {
+                        int endX = startX + directions[d][0] * step;
+                        int endY = startY + directions[d][1] * step;
+
+                        // Vérifier si la destination est dans le plateau
+                        if (endX < 0 || endX >= BOARD_SIZE || endY < 0 || endY >= BOARD_SIZE) break;
+                        Tile *endTile = &board->tiles[endY][endX];
+
+                        // Si la destination est bloquée par un ami, s'arrêter dans cette direction
+                        if (endTile->layerCount > 1 && GetPieceColor(endTile->layers[endTile->layerCount - 1]) == current_player) break;
+
+                        // Créer le coup (logique MakeMove/UnmakeMove pour la vérification d'échec est nécessaire ici)
+                        
+                        // NOTE : La vérification IsPathClear est implicite par le parcours 'step' et le 'break' ci-dessus.
+                        // On doit vérifier si le coup met le roi en échec avant d'ajouter le coup à moveList.
+                        // SIMULATION DU COUP... (MakeMove)
+                        // VÉRIFICATION DE L'ÉCHEC... (IsKingInCheck)
+                        // ANNULATION DU COUP... (UnmakeMove)
+
+                        // Si le coup est légal, l'ajouter.
+                        moveList[count++] = (Move){startX, startY, endX, endY, 0}; 
+
+                        // Si la destination est une pièce ennemie, ajouter le coup, puis s'arrêter dans cette direction
+                        if (endTile->layerCount > 1 && GetPieceColor(endTile->layers[endTile->layerCount - 1]) != current_player) break;
+                    }
+                }
+            }
+            // Pour les pièces de COURT PORTEE (Cavalier, Roi, Pion)
+            else if (pieceID == 2 || pieceID == 3 || pieceID == 10 || pieceID == 11 || pieceID == 6 || pieceID == 7)
+            {
+                // Ajoutez ici la logique spécifique et les boucles pour chaque type de pièce
+                // C'est ici que l'énorme logique des pions (initial, capture, en passant, promotion) va.
+                // C'est ici que la vérification abs(dx) <= 1 && abs(dy) <= 1 pour le Roi va.
+                // C'est ici que la vérification L (1x2 ou 2x1) pour le Cavalier va.
+
+                // Pour chaque coup généré...
+                // SIMULATION DU COUP... (MakeMove)
+                // VÉRIFICATION DE L'ÉCHEC... (IsKingInCheck)
+                // ANNULATION DU COUP... (UnmakeMove)
+                // Si le coup est légal, l'ajouter à moveList[count++] = ...
+            }
+        }
+    }
+
+    return count;
+
+}
+
+static void MakeMove(Board *board, Move move)
+{
+    Tile *startTile = &board->tiles[move.startY][move.startX]; // Case départ
+    Tile *endTile = &board->tiles[move.endY][move.endX]; // Case arrivée
+    move.capturedPieceID = 0; // Quel pièce a été capturé (0 par défaut)
+    if (endTile->layerCount > 1) // Vérifie si la case d'arrivée n'est pas vide
+    {
+        move.capturedPieceID = TilePop(endTile); // Retire la pièce manger et stock son ID
+    }
+    int pieceID = TilePop(startTile); // Retire la pièce de départ
+    TilePush (endTile, pieceID); // Place la pièce sur la nouvelle case
+    currentTurn = 1 - currentTurn;
+}
+
+static void UnmakeMove(Board *board, Move move)
+{
+    Tile *startTile = &board->tiles[move.startY][move.startX]; // Case départ originale
+    Tile *endTile = &board->tiles[move.endY][move.endX]; // Case arrivée origniale
+    int pieceID = TilePop(endTile); // Supprime la pièce tout en la stockant
+    TilePush(startTile, pieceID); // Replace la pièce à son ancienne position
+    if (move.capturedPieceID != 0)
+    {
+        TilePush(endTile, move.capturedPieceID); // Replace la pièce mangée 
+    }
+}
+
+static int EvalutatePosition(const Board *board)
+{
+    int PAWN_VAL = 100;
+    int KNIGHT_VAL = 320;
+    int BISHOP_VAL = 330;
+    int ROOK_VAL = 500;
+    int QUEEN_VAL = 900;
+    int score = 0;
+
+    // Calcul de la valeur matérielle
+    for (int y = 0; y < BOARD_ROWS; y++)
+    {
+        for (int x = 0; x < BOARD_COLS; x++)
+        {
+            const Tile *t = &board->tiles[y][x];
+            
+            // Si la case contient une pièce
+            if (t->layerCount > 1)
+            {
+                int pieceID = t->layers[t->layerCount - 1]; // Pièce sur le dessus
+                int pieceColor = GetPieceColor(pieceID); // 0 = Blanc, 1 = Noir
+
+                int value = 0;
+
+                // Identification de la pièce et assignation de la valeur
+                if (pieceID == 6 || pieceID == 7) value = PAWN_VAL;       // Pion (6:Blanc, 7:Noir)
+                else if (pieceID == 2 || pieceID == 3) value = KNIGHT_VAL; // Cavalier (2:B, 3:N)
+                else if (pieceID == 4 || pieceID == 5) value = BISHOP_VAL;  // Fou (4:B, 5:N)
+                else if (pieceID == 12 || pieceID == 13) value = ROOK_VAL;  // Tour (12:B, 13:N)
+                else if (pieceID == 8 || pieceID == 9) value = QUEEN_VAL;   // Reine (8:B, 9:N)
+
+                // Ajout ou soustraction au score total
+                if (pieceColor == 0) // Blanc (maximise)
+                {
+                    score += value;
+                }
+                else // Noir (minimise)
+                {
+                    score -= value;
+                }
+
+                // Facteurs positionnels simples
+                if ((pieceID == 6 || pieceID == 7) && (x >= 3 && x <= 4)) // Pions centraux
+                {
+                    if (pieceColor == 0) score += 5; // Bonus pour les pions Blancs au centre
+                    else score -= 5;                 // Malus pour les pions Noirs au centre
+                }
+            }
+        }
+    }
+    return score;
+}
+
+static int AlphaBeta(Board *b, int profondeur, int a, int beta, bool isMax)
+{
+    if (profondeur == 0) return EvalutatePosition(b); // Si on attends la profondeur souhaité o, retourne le score
+    Move LocalMoveList[MAX_MOVES];
+    int count = GenerateLegalMoves(b, LocalMoveList); // Génère tous les coups possibles de cette position
+    if (isMax) // Cherche le meilleur coup
+    {
+        for (int i = 0; i < count; i++) // Pour chaque coup légal
+        {
+            Move m = moveList[i];
+            MakeMove(b, m); // Execute le coup sur un plateau virtuel
+            int eval = AlphaBeta(b, profondeur - 1, a, beta, false); // Appel récursif pour le tour de l'adversaire
+            UnmakeMove(b, m); // Annule le coup
+            a = max(a, eval); // Met a jour la meilleur valeur trouvé pour l'IA
+            if (beta <= a) break; // Si la meilleur option de l'IA est pire que ce que l'humain a trouvé on arrête la recherche
+        }
+    }
+    else
+    {
+        for (int i = 0; i < count; i++)
+        {
+            Move m = moveList[i];
+            MakeMove(b , m);
+            int eval = AlphaBeta(b, profondeur - 1, a, beta, true);
+            UnmakeMove(b, m);
+            beta = min(beta, eval);
+            if (beta <= a) break;
+        }
+    }
+}
+
+static Move FindBestMove(Board *board, int depth)
+{
+    Move legalMoves[MAX_MOVES];
+    int count = GenerateLegalMoves(board, legalMoves);
+    int bestScore = (currentTurn == 0) ? -INFINITY : INFINITY;
+    Move bestMove = legalMoves[0];
+
+    if (count == 0) 
+    {
+        TraceLog(LOG_WARNING, "Aucun coup légal trouvé !");
+        return bestMove;
+    }
+
+    for (int i = 0; i < count; i++)
+    {
+        Move move = legalMoves[i];
+        MakeMove(board, move);
+        int eval = AlphaBeta(board, depth - 1, -INFINITY, INFINITY, (currentTurn == 0) ? false : true);
+        UnmakeMove(board, move);
+        if (currentTurn == 0)
+        {
+            if (eval > bestScore)
+            {
+                bestScore = eval;
+                bestMove = move;
+            }
+        }
+        else 
+        {
+            if (eval < bestScore)
+            {
+                bestScore = eval;
+                bestMove = move;
+            }
+        }
+    }
+    return bestMove;
+}
+
+static void AIMakeMove(Board *board)
+{
+    if (board->mode == MODE_PLAYER_VS_IA && currentTurn == ID_IA)
+    {
+        int depth = 4; // Permet d'ajuster la difficulté de l'IA
+        Move bestMove = FindBestMove(board, depth);
+        Tile *startTile = &board->tiles[bestMove.startY][bestMove.startX];
+        Tile *endTile = &board->tiles[bestMove.endY][bestMove.endX];
+        if (endTile->layerCount > 1)
+        {
+            TilePop(endTile);
+        }
+        int objID = TilePop(startTile);
+        TilePush(endTile,objID);
+        currentTurn = 1 - currentTurn;
+    }
+}
+
 // INITIALISATION DU JEU
 void GameInit(Board *board) // met en place l'échiquier
 {
@@ -369,6 +618,10 @@ void GameUpdate(Board *board, float dt)
     }
     else if (board->state == STATE_PLAYING)
     {
+        if (board->mode == MODE_PLAYER_VS_IA && currentTurn == ID_IA)
+        {
+            AIMakeMove(board);
+        }
         // Gestion Timer
         if (currentTurn == 0) {
             if (board->timer.whiteTime > 0.0f) board->timer.whiteTime -= dt; 
