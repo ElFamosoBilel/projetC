@@ -677,6 +677,7 @@ void GameUpdate(Board *board, float dt)
 // --- 5. DESSIN DU JEU ---
 void GameDraw(const Board *board)
 {
+    // (Garde ton code de dessin ici, il est parfait)
     int screenW = GetScreenWidth();
     int screenH = GetScreenHeight();
 
@@ -684,10 +685,8 @@ void GameDraw(const Board *board)
     int tileSizeH = screenH / BOARD_ROWS;
 
     int tileSize = (tileSizeW < tileSizeH) ? tileSizeW : tileSizeH;
-
     int boardW = tileSize * BOARD_COLS;
     int boardH = tileSize * BOARD_ROWS;
-
     int offsetX = (screenW - boardW) / 2;
     int offsetY = (screenH - boardH) / 2;
 
