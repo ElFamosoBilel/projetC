@@ -11,8 +11,9 @@ int selectedX = -1; // permet la selection
 int selectedY = -1; // permet la selection
 int currentTurn = 0; // 0 = Blancs, 1 = Noirs
 
-// NOTE: Les variables globales 'gameOver' et 'winner' du bloc 'HEAD' ont été remplacées par les membres 'board->state' et 'board->winner' pour une gestion plus centralisée.
-
+#define MAX_MOVES 64 // Taille maximale = toutes les cases
+static int possibleMoves[MAX_MOVES][2]; // 64 coups possibles, avec leur coordonnées X et Y
+static int possibleMoveCount = 0; // Initialise par défauts
 // --- 2. FONCTIONS UTILITAIRES (Helpers) ---
 
 static void TileClear(Tile *t) // initialise une case vide
@@ -48,6 +49,7 @@ static int GetPieceColor(int textureID)
 
 // Vérifie si le chemin est libre (Tour, Reine, Fou)
 static bool IsPathClear(const Board *board, int startX, int startY, int endX, int endY){
+
     // Déplacement horizontal
     if (startY == endY) 
     {
@@ -63,7 +65,7 @@ static bool IsPathClear(const Board *board, int startX, int startY, int endX, in
         int step = (endY > startY) ? 1 : -1; 
         for (int y = startY + step; y != endY; y += step)
         {
-            if (board->tiles[y][startX].layerCount > 1) return false; 
+            if (board->tiles[y][startX].layerCount > 1) return false;
         }
     }
     // Déplacement diagonal
@@ -83,6 +85,97 @@ static bool IsPathClear(const Board *board, int startX, int startY, int endX, in
         }
     }
     // Si ce n'est ni l'un ni l'autre (ex: Cavalier), on considère que le chemin n'est pas "bloquable" par cette fonction
+    return true; 
+}
+
+static bool IsMoveValid(const Board *board, int startX, int startY, int endX, int endY)
+{
+    // Ne pas bouger
+    if (startX == endX && startY == endY) return false;
+    
+    Tile *oldTile = (Tile*)&board->tiles[startY][startX];
+    Tile *targetTile = (Tile*)&board->tiles[endY][endX];
+    
+    // Si la case de départ est vide (ne devrait pas arriver, mais sécurité)
+    if (oldTile->layerCount <= 1) return false;
+
+    int pieceID = oldTile->layers[oldTile->layerCount - 1]; 
+    int currentTurnColor = GetPieceColor(pieceID); 
+    
+    int dx = endX - startX; 
+    int dy = endY - startY; 
+    bool ruleMatch = false;
+
+    // A. VÉRIFICATION RÈGLES PHYSIQUES (basé sur votre code original)
+    if (pieceID == 12 || pieceID == 13) // Tour
+    {
+        if ((dx != 0 && dy == 0) || (dx == 0 && dy != 0))
+        {
+            if (IsPathClear(board, startX, startY, endX, endY)) ruleMatch = true;
+        }
+    }
+    else if (pieceID == 4 || pieceID == 5) // Fou
+    {
+        if (abs(dx) == abs(dy) && dx != 0)
+        {
+            if (IsPathClear(board, startX, startY, endX, endY)) ruleMatch = true;
+        }
+    }
+    else if (pieceID == 8 || pieceID == 9) // Reine
+    {
+        if ((dx != 0 && dy == 0) || (dx == 0 && dy != 0) || (abs(dx) == abs(dy)))
+        {
+            if (IsPathClear(board, startX, startY, endX, endY)) ruleMatch = true;
+        }
+    }
+    else if (pieceID == 10 || pieceID == 11) // Roi
+    {
+        if (abs(dx) <= 1 && abs(dy) <= 1) ruleMatch = true;
+    }
+    else if (pieceID == 2 || pieceID == 3) // Cavalier
+    {
+        if ((abs(dx) == 1 && abs(dy) == 2) || (abs(dx) == 2 && abs(dy) == 1)) ruleMatch = true;
+    }
+    else if (pieceID == 6 || pieceID == 7) // Pion
+    {
+        int direction = (currentTurnColor == 0) ? -1 : 1; 
+        int initialRow = (currentTurnColor == 0) ? 6 : 1; 
+        
+        // Capture Diagonale
+        if (abs(dx) == 1 && dy == direction)
+        {
+            if (targetTile->layerCount > 1) { 
+                int targetColor = GetPieceColor(targetTile->layers[targetTile->layerCount - 1]);
+                if (targetColor != -1 && targetColor != currentTurnColor) ruleMatch = true; 
+            }
+        }
+        // Avance 1 case
+        else if (dx == 0 && dy == direction && targetTile->layerCount == 1) 
+        {
+            ruleMatch = true;
+        }
+        // Avance 2 cases (Premier tour)
+        else if (dx == 0 && dy == 2 * direction && startY == initialRow && targetTile->layerCount == 1)
+        {
+            Tile *midTile = (Tile*)&board->tiles[startY + direction][startX];
+            if (midTile->layerCount == 1) ruleMatch = true;
+        }
+    }
+
+    if (!ruleMatch) return false;
+
+    // B. VÉRIFICATION CONFLIT (Case occupée par un allié ?)
+    if (targetTile->layerCount > 1)
+    {
+        int targetID = targetTile->layers[targetTile->layerCount - 1];
+        int targetColor = GetPieceColor(targetID);
+
+        if (targetColor != -1 && targetColor == currentTurnColor) // si y'a une pièce alliée
+        {
+            return false; // Bloqué par un ami
+        }
+    }
+
     return true; 
 }
 
@@ -134,6 +227,7 @@ void GameInit(Board *board) // met en place l'échiquier
     currentTurn = 0; // Toujours commencer par les Blancs
     selectedX = -1;
     selectedY = -1;
+    possibleMoveCount = 0; // Initialise par défaut
 }
 
 // Fonction utilitaire pour recommencer une partie proprement (Utilise GameInit qui fait tout le travail)
@@ -181,6 +275,18 @@ static void GameLogicUpdate(Board *board, float dt)
                         selectedX = x;
                         selectedY = y;
                         TraceLog(LOG_INFO, "Selection OK"); 
+                        for (int py = 0; py < BOARD_ROWS; py++)
+                        {
+                            for (int px = 0; px < BOARD_COLS; px++)
+                            {
+                                if (IsMoveValid(board, selectedX, selectedY, px, py))
+                                {
+                                    possibleMoves[possibleMoveCount][0] = px; // Note la coordonnées X du coup possible
+                                    possibleMoves[possibleMoveCount][1] = py; // Note la coordonnées Y du coup possible
+                                    possibleMoveCount++; // Augmente le nombre de coup possible
+                                }
+                            }
+                        }  
                     }
                     else
                     {
@@ -208,6 +314,7 @@ static void GameLogicUpdate(Board *board, float dt)
                 {
                     selectedX = -1;
                     selectedY = -1;
+                    possibleMoveCount = 0; // réinitialise une fois la sélection annulée
                     TraceLog(LOG_INFO, "Annulation");
                     return; 
                 }
@@ -313,7 +420,8 @@ static void GameLogicUpdate(Board *board, float dt)
 
                     selectedX = -1; 
                     selectedY = -1;
-                    
+                    possibleMoveCount = 0; // Réinitialise une fois le mouvement effectué
+
                     if (board->state != STATE_GAMEOVER) // Ne change le tour que si la partie continue
                     {
                         currentTurn = 1 - currentTurn; // change le tour
@@ -323,7 +431,17 @@ static void GameLogicUpdate(Board *board, float dt)
                 }
                 else
                 {
-                    TraceLog(LOG_WARNING, "Mouvement invalide");
+                    if (clickedTile->layerCount > 1)
+                    {
+                        int targetColor = GetPieceColor(clickedTile->layers[clickedTile->layerCount - 1]);
+                        if (targetColor == currentTurn)
+                        {
+                            selectedX = -1; // Force la réinitialisation pour relancer la sélection
+                            possibleMoveCount = 0;
+                            GameLogicUpdate(board, dt); // Permet de sélectionné la nouvelle pièce
+                            return; // Fin de la fonction
+                        }
+                    }
                 }
             }
         }
@@ -363,11 +481,11 @@ void GameUpdate(Board *board, float dt)
         }
         
         // GESTION ABANDON (FORFAIT)
-        if (IsKeyPressed(KEY_SPACE))
+        if (IsKeyPressed(KEY_F))
         {
             board->state = STATE_GAMEOVER;
             board->winner = 1 - currentTurn; // Le gagnant est l'adversaire
-            TraceLog(LOG_WARNING, "Le joueur %s a déclaré forfait (Espace).", (currentTurn == 0) ? "BLANC" : "NOIR");
+            TraceLog(LOG_WARNING, "Le joueur %s a déclaré forfait (F).", (currentTurn == 0) ? "BLANC" : "NOIR");
             return;
         }
         // Logique de jeu (clics de pièces)
@@ -439,9 +557,39 @@ void GameDraw(const Board *board)
             }
             
             // Sélection et bordures
-            if (x == selectedX && y == selectedY) DrawRectangleLines(drawX, drawY, tileSize, tileSize, GREEN); 
-            else DrawRectangleLines(drawX, drawY, tileSize, tileSize, Fade(DARKGRAY, 0.3f));
+            DrawRectangleLines(drawX, drawY, tileSize, tileSize, Fade(DARKGRAY, 0.3f));
         }
+    }
+
+    // Dessin des cases possibles
+
+    for (int i = 0; i < possibleMoveCount; i++) // Boucle pour faire la totalité des cases
+    {
+        int x = possibleMoves[i][0];
+        int y = possibleMoves[i][1];
+        int drawX = offsetX + x * tileSize;
+        int drawY = offsetY + y * tileSize;
+        
+        // Indicateur visuel : un cercle pour indiquer la destination
+        Color indicatorColor = Fade(DARKGRAY, 0.3f);
+        
+        // Si la case cible contient une pièce ennemi, on utilise un rectangle rouge
+        const Tile *t = &board->tiles[y][x];
+        if (t->layerCount > 1) {
+            indicatorColor = Fade(RED, 0.6f);
+            DrawRectangleLinesEx((Rectangle){(float)drawX, (float)drawY, (float)tileSize, (float)tileSize}, 5, indicatorColor);
+        } else {
+            // Sinon, un cercle pour les cases vides
+            DrawCircle(drawX + tileSize / 2, drawY + tileSize / 2, tileSize / 8, indicatorColor);
+        }
+    }
+
+    // Dessin de la sélection par dessus les indicateurs de mouvements
+    if (selectedX != -1) 
+    {
+        int drawX = offsetX + selectedX * tileSize;
+        int drawY = offsetY + selectedY * tileSize;
+        DrawRectangleLinesEx((Rectangle){(float)drawX, (float)drawY, (float)tileSize, (float)tileSize}, 4, GREEN); 
     }
 
     // Dessin des Timers
