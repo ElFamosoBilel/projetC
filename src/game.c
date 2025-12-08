@@ -129,9 +129,47 @@ static bool IsMoveValid(const Board *board, int startX, int startY, int endX, in
         }
     }
     else if (pieceID == 10 || pieceID == 11) // Roi
+{
+    // Déplacement 1 case dans toutes les directions
+    if (abs(dx) <= 1 && abs(dy) <= 1)
+        return true;
+
+    // -------- ROQUE --------
+    if (dy == 0 && (dx == 2 || dx == -2))
     {
-        if (abs(dx) <= 1 && abs(dy) <= 1) ruleMatch = true;
+        int rookX = (dx == 2) ? startX + 3 : startX - 4;
+        Tile *rookTile = (Tile*)&board->tiles[startY][rookX];
+
+        if (rookTile->layerCount > 1)
+        {
+            int rookID = rookTile->layers[rookTile->layerCount - 1];
+            bool correctRook =
+                (currentTurnColor == 0 && rookID == 12) ||
+                (currentTurnColor == 1 && rookID == 13);
+
+            if (correctRook)
+            {
+                int step = (dx > 0) ? 1 : -1;
+                bool pathClear = true;
+
+                for (int cx = startX + step; cx != rookX; cx += step)
+                {
+                    if (board->tiles[startY][cx].layerCount > 1)
+                    {
+                        pathClear = false;
+                        break;
+                    }
+                }
+
+                if (pathClear)
+                    return true;
+            }
+        }
     }
+
+    return false;
+}
+
     else if (pieceID == 2 || pieceID == 3) // Cavalier
     {
         if ((abs(dx) == 1 && abs(dy) == 2) || (abs(dx) == 2 && abs(dy) == 1)) ruleMatch = true;
@@ -162,7 +200,7 @@ static bool IsMoveValid(const Board *board, int startX, int startY, int endX, in
         }
     }
 
-    if (!ruleMatch) return false;
+    //if (!ruleMatch) return false;
 
     // B. VÉRIFICATION CONFLIT (Case occupée par un allié ?)
     if (targetTile->layerCount > 1)
@@ -275,6 +313,7 @@ static void GameLogicUpdate(Board *board, float dt)
                         selectedX = x;
                         selectedY = y;
                         TraceLog(LOG_INFO, "Selection OK"); 
+                        possibleMoveCount = 0;
                         for (int py = 0; py < BOARD_ROWS; py++)
                         {
                             for (int px = 0; px < BOARD_COLS; px++)
@@ -345,11 +384,46 @@ static void GameLogicUpdate(Board *board, float dt)
                         if (IsPathClear(board, startX, startY, endX, endY)) moveAllowed = true;
                     }
                 }
-                // Roi
-                else if (pieceID == 10 || pieceID == 11)
+                else if (pieceID == 10 || pieceID == 11) // Roi
+{
+    // Déplacement normal
+    if (abs(dx) <= 1 && abs(dy) <= 1)
+        moveAllowed = true;
+
+    // --- ROQUE ---
+    else if (dy == 0 && (dx == 2 || dx == -2))
+    {
+        int rookX = (dx == 2) ? startX + 3 : startX - 4;
+        Tile *rookTile = (Tile*)&board->tiles[startY][rookX];
+
+        if (rookTile->layerCount > 1)
+        {
+            int rookID = rookTile->layers[rookTile->layerCount - 1];
+            bool correctRook =
+                (currentTurnColor == 0 && rookID == 12) ||
+                (currentTurnColor == 1 && rookID == 13);
+
+            if (correctRook)
+            {
+                int step = (dx > 0) ? 1 : -1;
+                bool pathClear = true;
+
+                for (int cx = startX + step; cx != rookX; cx += step)
                 {
-                    if (abs(dx) <= 1 && abs(dy) <= 1) moveAllowed = true;
+                    if (board->tiles[startY][cx].layerCount > 1)
+                    {
+                        pathClear = false;
+                        break;
+                    }
                 }
+
+                if (pathClear)
+                    moveAllowed = true;       // ← IMPORTANT pour l'affichage
+            }
+        }
+    }
+}
+
                 // Cavalier
                 else if (pieceID == 2 || pieceID == 3)
                 {
@@ -382,7 +456,7 @@ static void GameLogicUpdate(Board *board, float dt)
                         if (midTile->layerCount == 1) moveAllowed = true;
                     }
                 }
-
+               
                 // C. VÉRIFICATION FINALE (Case cible occupée par un ami ?)
                 if (moveAllowed)
                 {
