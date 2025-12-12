@@ -1,35 +1,37 @@
-# 1. Le compilateur Cross-Platform (Windows sur Mac)
-CC = x86_64-w64-mingw32-gcc
+# Makefile
 
-# 2. Chemins vers la Raylib WINDOWS (celle que tu as téléchargée)
-RAYLIB_PATH = ./raylib_win
+CC      ?= gcc
+CFLAGS  ?= -std=c17 -Wall -Wextra -g
+CFLAGS  += -Isrc -Iinclude
+LDFLAGS ?=
 
-# 3. Options de compilation (Include headers)
-# On inclut le dossier src, le dossier include local, et les headers de raylib_win
-CFLAGS = -Wall -Wextra -Isrc -Iinclude -I$(RAYLIB_PATH)/include
 
-# 4. Options de Link (Bibliothèques)
-# -L... : Où trouver le fichier .a de la lib
-# -lraylib : La lib elle-même
-# -lopengl32 -lgdi32 -lwinmm : Les libs Windows OBLIGATOIRES pour Raylib
-# -static : Pour tout inclure dans le .exe
-LDFLAGS = -L$(RAYLIB_PATH)/lib -lraylib -lopengl32 -lgdi32 -lwinmm -static
+SRC  := $(wildcard src/*.c)
+OBJ  := $(SRC:src/%.c=build/%.o)
+BIN  := build/game
 
-# 5. Nom de l'exécutable
-EXEC = mon_jeu.exe
+UNAME_S := $(shell uname -s)
 
-# 6. Sources : On prend tous les .c dans le dossier src/
-SRC = $(wildcard src/*.c)
-OBJ = $(SRC:.c=.o)
+# macOS (Homebrew + pkg-config)
+ifeq ($(UNAME_S),Darwin)
+    CFLAGS  += $(shell pkg-config --cflags raylib)
+    LDFLAGS += $(shell pkg-config --libs raylib)
+endif
 
-all: $(EXEC)
+# Windows (MSYS2 / MinGW64)
+ifeq ($(OS),Windows_NT)
+    CFLAGS  += $(shell pkg-config --cflags raylib)
+    LDFLAGS += $(shell pkg-config --libs raylib)
+endif
 
-$(EXEC): $(OBJ)
-	$(CC) -o $@ $^ $(CFLAGS) $(LDFLAGS)
+all: $(BIN)
 
-# Règle pour compiler les .c en .o
-%.o: %.c
-	$(CC) -o $@ -c $< $(CFLAGS)
+$(BIN): $(OBJ)
+	$(CC) $(OBJ) -o $@ $(LDFLAGS)
+
+build/%.o: src/%.c
+	mkdir -p build
+	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
-	rm -f src/*.o $(EXEC)
+	rm -rf build
