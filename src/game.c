@@ -7,18 +7,11 @@
 #define min(a, b) ((a) < (b) ? (a) : (b))
 #define max(a, b) ((a) > (b) ? (a) : (b))
 
-// Constantes pour l'IA
-#define ID_IA 1 // L'IA joue les noirs (1)
-
-// ==========================================
-// 0. IMPORTATIONS EXTERNES
-// ==========================================
+// IMPORTATIONS EXTERNES
 extern Texture2D gTileTextures[]; 
 extern int gTileTextureCount; 
 
-// ==========================================
-// 1. VARIABLES GLOBALES
-// ==========================================
+// VARIABLES GLOBALES
 int selectedX = -1; 
 int selectedY = -1; 
 int currentTurn = 0; // 0 = Blancs, 1 = Noirs
@@ -33,9 +26,7 @@ int promotionColor = -1;
 static int possibleMoves[MAX_MOVES][2]; 
 static int possibleMoveCount = 0; 
 
-// ==========================================
-// 2. FONCTIONS UTILITAIRES (HELPERS)
-// ==========================================
+// FONCTIONS UTILITAIRES
 
 // Vide complètement une case (enlève toutes les pièces)
 static void TileClear(Tile *t) 
@@ -84,14 +75,12 @@ static int GetPieceColor(int textureID)
     }
 }
 
-// ==========================================
-// 3. LOGIQUE DE DÉPLACEMENT (PHYSIQUE)
-// ==========================================
+// LOGIQUE DE DÉPLACEMENT
 
 // Vérifie si le chemin est libre entre A et B (pour Tour, Fou, Reine)
 static bool IsPathClear(const Board *board, int startX, int startY, int endX, int endY)
 {
-    // --- Cas 1 : Déplacement Horizontal ---
+    // Cas 1 : Déplacement Horizontal
     if (startY == endY) 
     {
         int step = (endX > startX) ? 1 : -1;
@@ -105,7 +94,7 @@ static bool IsPathClear(const Board *board, int startX, int startY, int endX, in
             }
         }
     }
-    // --- Cas 2 : Déplacement Vertical ---
+    // Cas 2 : Déplacement Vertical
     else if (startX == endX)
     {
         int step = (endY > startY) ? 1 : -1;
@@ -118,7 +107,7 @@ static bool IsPathClear(const Board *board, int startX, int startY, int endX, in
             }
         }
     }
-    // --- Cas 3 : Déplacement Diagonal ---
+    // Cas 3 : Déplacement Diagonal
     else if (abs(endX - startX) == abs(endY - startY)) 
     {
         int stepX = (endX > startX) ? 1 : -1;
@@ -138,7 +127,6 @@ static bool IsPathClear(const Board *board, int startX, int startY, int endX, in
             y += stepY; 
         }
     }
-    
     return true; // Chemin libre
 }
 
@@ -161,9 +149,9 @@ static bool IsMoveValid(const Board *board, int startX, int startY, int endX, in
     int dy = endY - startY; 
     bool ruleMatch = false;
 
-    // --- ANALYSE SELON LA PIÈCE ---
+    // ANALYSE SELON LA PIÈCE
 
-    // 1. TOUR (ID 12 Blanc, 13 Noir)
+    // TOUR (ID 12 Blanc, 13 Noir)
     if (pieceID == 12 || pieceID == 13) 
     {
         // Doit bouger en ligne droite (soit dx est 0, soit dy est 0)
@@ -175,7 +163,7 @@ static bool IsMoveValid(const Board *board, int startX, int startY, int endX, in
             }
         }
     }
-    // 2. FOU (ID 4 Blanc, 5 Noir)
+    // FOU (ID 4 Blanc, 5 Noir)
     else if (pieceID == 4 || pieceID == 5) 
     {
         // Doit bouger en diagonale parfaite (dx égal à dy en valeur absolue)
@@ -187,7 +175,7 @@ static bool IsMoveValid(const Board *board, int startX, int startY, int endX, in
             }
         }
     }
-    // 3. REINE (ID 8 Blanc, 9 Noir)
+    // REINE (ID 8 Blanc, 9 Noir)
     else if (pieceID == 8 || pieceID == 9) 
     {
         // Combine Tour et Fou
@@ -199,22 +187,19 @@ static bool IsMoveValid(const Board *board, int startX, int startY, int endX, in
             }
         }
     }
-    // 4. ROI (ID 10 Blanc, 11 Noir)
+    // ROI (ID 10 Blanc, 11 Noir)
     else if (pieceID == 10 || pieceID == 11) 
     {
-        // A. Déplacement 1 case dans toutes les directions
+        // Déplacement 1 case dans toutes les directions
         if (abs(dx) <= 1 && abs(dy) <= 1) 
         {
             ruleMatch = true;
         }
-        // B. ROQUE
+        // ROQUE
         else if (dy == 0 && (dx == 2 || dx == -2))
         {
-            // La logique complète du roque (y compris la vérification d'échec) est faite
-            // dans `GameLogicUpdate` et `GenerateLegalMoves`. Ici, on vérifie la base :
             // chemin clair et tour présente.
-            int rookX = (dx == 2) ? startX + 3 : startX - 4; // Colonne 7 ou 0
-            
+            int rookX = (dx == 2) ? startX + 3 : startX - 4; // Colonne 7 ou 0  
             if (rookX >= 0 && rookX < BOARD_COLS) 
             {
                 const Tile *rookTile = &board->tiles[startY][rookX];
@@ -230,13 +215,8 @@ static bool IsMoveValid(const Board *board, int startX, int startY, int endX, in
                     if (correctRook)
                     {
                         // Vérifie si le chemin est clair entre Roi et Tour
-                        // Attention : pour le roque, il faut vérifier que les cases intermédiaires
-                        // entre le roi et la tour *ainsi que* la case où atterrit le roi
-                        // sont bien libres de toute pièce. `IsPathClear` vérifie toutes les
-                        // cases entre le départ et l'arrivée (exclusif).
                         int step = (dx > 0) ? 1 : -1;
                         bool pathClear = true;
-                        
                         for (int x = startX + step; x != rookX; x += step)
                         {
                             if (board->tiles[startY][x].layerCount > 1)
@@ -256,7 +236,8 @@ static bool IsMoveValid(const Board *board, int startX, int startY, int endX, in
             }
         }
     }
-    // 5. CAVALIER (ID 2 Blanc, 3 Noir)
+
+    // CAVALIER (ID 2 Blanc, 3 Noir)
     else if (pieceID == 2 || pieceID == 3) 
     {
         // Mouvement en "L" (2 cases d'un côté, 1 case de l'autre)
@@ -265,7 +246,7 @@ static bool IsMoveValid(const Board *board, int startX, int startY, int endX, in
             ruleMatch = true;
         }
     }
-    // 6. PION (ID 6 Blanc, 7 Noir)
+    // PION (ID 6 Blanc, 7 Noir)
     else if (pieceID == 6 || pieceID == 7) 
     {
         int direction;
@@ -279,7 +260,7 @@ static bool IsMoveValid(const Board *board, int startX, int startY, int endX, in
             initialRow = 1;
         }
         
-        // A. Capture en diagonale
+        // Capture en diagonale
         if (abs(dx) == 1 && dy == direction) 
         {
             // Il faut qu'il y ait une pièce ennemie sur la cible
@@ -292,7 +273,7 @@ static bool IsMoveValid(const Board *board, int startX, int startY, int endX, in
                 }
             }
         }
-        // B. Avance simple (1 case)
+        // Avance simple (1 case)
         else if (dx == 0 && dy == direction) 
         {
             // La case cible doit être vide
@@ -301,7 +282,7 @@ static bool IsMoveValid(const Board *board, int startX, int startY, int endX, in
                 ruleMatch = true;
             }
         }
-        // C. Double avance (Premier tour)
+        // Double avance (Premier tour)
         else if (dx == 0 && dy == 2 * direction && startY == initialRow) 
         {
             // La case cible ET la case intermédiaire doivent être vides
@@ -316,7 +297,7 @@ static bool IsMoveValid(const Board *board, int startX, int startY, int endX, in
     // Si la règle physique n'est pas respectée, c'est invalide
     if (!ruleMatch) return false;
 
-    // --- VÉRIFICATION COLLISION ALLIÉE ---
+    // VÉRIFICATION COLLISION ALLIÉE
     // On ne peut pas manger ses propres pièces
     if (targetTile->layerCount > 1) 
     {
@@ -326,8 +307,6 @@ static bool IsMoveValid(const Board *board, int startX, int startY, int endX, in
         if (targetColor != -1 && targetColor == currentTurnColor) 
         {
             // Exception : Pour le roque, l'arrivée est vide.
-            // Si l'arrivée est une Tour et c'est un roque (dx=2 ou -2), on l'ignore car
-            // la Tour est déplacée, pas mangée.
             if (!((pieceID == 10 || pieceID == 11) && abs(dx) == 2))
             {
                 return false; // Bloqué par un ami
@@ -338,10 +317,7 @@ static bool IsMoveValid(const Board *board, int startX, int startY, int endX, in
     return true; 
 }
 
-// ==========================================
-// 4. LOGIQUE DE SÉCURITÉ (ECHEC / MAT)
-// (Fusionnée de 'main')
-// ==========================================
+// LOGIQUE DE SÉCURITÉ (ECHEC / MAT)
 
 // Détecte si le Roi d'une couleur donnée est menacé ACTUELLEMENT
 static bool IsKingInCheck(const Board *board, int kingColor)
@@ -350,7 +326,7 @@ static bool IsKingInCheck(const Board *board, int kingColor)
     int kingY = -1;
     int targetKingID = (kingColor == 0) ? 10 : 11; // 10=Blanc, 11=Noir
 
-    // 1. On cherche où est le Roi
+    // On cherche où est le Roi
     for (int y = 0; y < BOARD_ROWS; y++) 
     {
         for (int x = 0; x < BOARD_COLS; x++) 
@@ -369,7 +345,7 @@ static bool IsKingInCheck(const Board *board, int kingColor)
     
     if (kingX == -1 || kingY == -1) return false;
 
-    // 2. On regarde si un ennemi peut attaquer cette case (kingX, kingY)
+    // On regarde si un ennemi peut attaquer cette case (kingX, kingY)
     for (int y = 0; y < BOARD_ROWS; y++) 
     {
         for (int x = 0; x < BOARD_COLS; x++) 
@@ -382,10 +358,6 @@ static bool IsKingInCheck(const Board *board, int kingColor)
             int attackerColor = GetPieceColor(attackerID);
 
             if (attackerColor == -1 || attackerColor == kingColor) continue;
-
-            // Pour la vérification d'échec, on doit SIMULER que l'attaquant
-            // peut bouger légalement, en prenant en compte la couleur du joueur
-            // qui serait en jeu s'il attaquait.
             
             // On fait une copie du board pour l'appel à IsMoveValid
             Board tempBoard = *board; 
@@ -406,10 +378,7 @@ static bool IsKingInCheck(const Board *board, int kingColor)
     return false;
 }
 
-// ==========================================
-// 5. LOGIQUE DE L'IA (AlphaBeta)
-// (Fusionnée de 'HEAD', adaptée pour l'échec)
-// ==========================================
+// LOGIQUE DE L'IA
 
 // Effectue le coup (déplace la pièce, gère la capture, le roque)
 static void MakeMove(Board *board, Move move)
@@ -452,17 +421,17 @@ static void UnmakeMove(Board *board, Move move)
     Tile *startTile = &board->tiles[move.startY][move.startX]; // Case départ originale
     Tile *endTile = &board->tiles[move.endY][move.endX]; // Case arrivée origniale
     
-    // 1. Déplacer la pièce qui a bougé
+    // Déplacer la pièce qui a bougé
     int pieceID = TilePop(endTile); // Supprime la pièce tout en la stockant
     TilePush(startTile, pieceID); // Replace la pièce à son ancienne position
 
-    // 2. Replacer la pièce mangée
+    // Replacer la pièce mangée
     if (move.capturedPieceID != 0)
     {
         TilePush(endTile, move.capturedPieceID); // Replace la pièce mangée 
     }
     
-    // 3. Annuler le roque si c'était un coup de roque
+    // Annuler le roque si c'était un coup de roque
     if ((pieceID == 10 || pieceID == 11) && abs(move.endX - move.startX) == 2)
     {
         int rookX_start = (move.endX > move.startX) ? move.startX + 3 : move.startX - 4;
@@ -503,8 +472,6 @@ static int GenerateLegalMoves(Board *board, Move movelist[], int playerColor)
                 {
                     if (IsMoveValid(board, startX, startY, endX, endY))
                     {
-                        // --- VÉRIFICATION D'ÉCHEC ---
-                        
                         // Créer le coup de base
                         Move m = {startX, startY, endX, endY, pieceID, 0}; 
 
@@ -599,7 +566,6 @@ static int AlphaBeta(Board *b, int profondeur, int a, int beta, bool isMax, int 
     
     Move LocalMoveList[MAX_MOVES];
     int count = GenerateLegalMoves(b, LocalMoveList, playerTurn); 
-
     if (count == 0)
     {
         // Gérer échec et mat / pat
@@ -615,7 +581,7 @@ static int AlphaBeta(Board *b, int profondeur, int a, int beta, bool isMax, int 
 
     if (isMax) // Cherche le meilleur coup pour Blanc (maximise)
     {
-        int maxEval = -INFINITY;
+        int maxEval = -INFINITY_SCORE;
         for (int i = 0; i < count; i++) 
         {
             Move m = LocalMoveList[i];
@@ -630,7 +596,7 @@ static int AlphaBeta(Board *b, int profondeur, int a, int beta, bool isMax, int 
     }
     else // Cherche le meilleur coup pour Noir (minimise)
     {
-        int minEval = INFINITY;
+        int minEval = INFINITY_SCORE;
         for (int i = 0; i < count; i++)
         {
             Move m = LocalMoveList[i];
@@ -651,7 +617,7 @@ static Move FindBestMove(Board *board, int depth)
     int playerTurn = currentTurn;
     int count = GenerateLegalMoves(board, legalMoves, playerTurn);
     
-    int bestScore = (playerTurn == 0) ? -INFINITY : INFINITY;
+    int bestScore = (playerTurn == 0) ? -INFINITY_SCORE : INFINITY_SCORE;
     Move bestMove = legalMoves[0];
 
     if (count == 0) 
@@ -667,7 +633,7 @@ static Move FindBestMove(Board *board, int depth)
         MakeMove(board, move);
         // L'IA joue (Min) si elle est Noir (1), et Max si elle est Blanc (0)
         // L'appel AlphaBeta va évaluer la position du point de vue de l'adversaire (1 - playerTurn)
-        int eval = AlphaBeta(board, depth - 1, -INFINITY, INFINITY, (playerTurn == 0) ? false : true, 1 - playerTurn);
+        int eval = AlphaBeta(board, depth - 1, -INFINITY_SCORE, INFINITY_SCORE, (playerTurn == 0) ? false : true, 1 - playerTurn);
         UnmakeMove(board, move);
         
         // Mise à jour du meilleur coup trouvé
@@ -700,9 +666,22 @@ static void AIMakeMove(Board *board, float dt)
             board->IADelay -= dt;
             return;
         }
+        
+        // Enregistrement du temps avant le calcul bloquant
+        double startTime = GetTime();
 
-        int depth = 3; // Augmenté pour une meilleure IA
+        int depth = board->AIDepth; // Défini en fonction de la difficulté
         Move bestMove = FindBestMove(board, depth);
+
+        // Calcul du temps écoulé pendant le calcul
+        double endTime = GetTime();
+        float calculationTime = (float)(endTime - startTime);
+
+        if (board->timer.blackTime > 0.0f)
+        {
+            board->timer.blackTime -= calculationTime;
+            TraceLog(LOG_INFO, "Temps de Calcul de l'IA déduit du temps des Noirs");
+        }
 
         if (bestMove.startX != -1)
         {
@@ -752,10 +731,7 @@ static void AIMakeMove(Board *board, float dt)
     }
 }
 
-// ==========================================
-// 6. INITIALISATION & RESET
-// (Fusionnée des deux, utilise la structure 'main')
-// ==========================================
+// INITIALISATION & RESET
 
 void GameInit(Board *board) 
 {
@@ -771,7 +747,7 @@ void GameInit(Board *board)
             int groundIndex = (x + y) % 2;
             TilePush(t, groundIndex);
 
-            // --- PLACEMENT DES PIECES ---
+            // PLACEMENT DES PIECES 
             
             // Pions Noirs (Ligne 1)
             if (y == 1) TilePush(t, 7); 
@@ -807,6 +783,9 @@ void GameInit(Board *board)
     board->state = STATE_MAIN_MENU;
     board->mode = MODE_NONE;
     board->winner = -1;
+    board->difficulty = DIFF_MEDIUM;
+    board->AIDepth = 3;
+    board->AIDefaultDelay = 2.0f;
     board->IADelay = 0.0f; // Ajout de la variable d'IA
     currentTurn = 0; 
     selectedX = -1; 
@@ -821,14 +800,11 @@ void GameReset(Board *board)
     GameInit(board); 
 }
 
-// ==========================================
 // 7. GESTION DES ÉVÉNEMENTS (INPUTS)
-// (Fusionnée et simplifiée)
-// ==========================================
 
 static void GameLogicUpdate(Board *board, float dt)
 {
-    // --- A. GESTION DE LA PROMOTION (Si un pion atteint le bout) ---
+    // GESTION DE LA PROMOTION (Si un pion atteint le bout)
     if (promotionPending == 1) 
     {
         Tile *promTile = &board->tiles[promotionY][promotionX];
@@ -869,7 +845,7 @@ static void GameLogicUpdate(Board *board, float dt)
         return; // IMPORTANT : On bloque le jeu tant que la promotion n'est pas choisie
     }
 
-    // --- B. GESTION DE LA SOURIS (Jeu normal) ---
+    // GESTION DE LA SOURIS (Jeu normal)
     if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
     {
         Vector2 m = GetMousePosition(); 
@@ -891,9 +867,7 @@ static void GameLogicUpdate(Board *board, float dt)
         {
             Tile *clickedTile = &board->tiles[y][x];
 
-            // -----------------------------
             // CAS 1 : JE SÉLECTIONNE UNE PIÈCE
-            // -----------------------------
             if (selectedX == -1) 
             {
                 if (clickedTile->layerCount > 1) 
@@ -906,12 +880,7 @@ static void GameLogicUpdate(Board *board, float dt)
                         selectedY = y;
                         TraceLog(LOG_INFO, "Selection de la piece en %d, %d", x, y); 
                         
-                        // Calcul des coups légaux pour l'affichage (réutilise GenerateLegalMoves de l'IA)
-                        Move localMoves[MAX_MOVES];
-                        Board tempBoard = *board; // On travaille sur une copie
-                        
                         // On doit simuler la sélection en déplaçant la pièce sur le board temporaire
-                        // C'est un peu lourd, mais c'est pour que IsMoveValid/IsKingInCheck fonctionnent correctement.
                         int originalTurn = currentTurn;
                         currentTurn = GetPieceColor(pieceID); 
                         
@@ -926,8 +895,6 @@ static void GameLogicUpdate(Board *board, float dt)
                                     // SIMULATION DE SÉCURITÉ (Copie du plateau pour la simulation)
                                     Board temp = *board;
                                     Move m = {selectedX, selectedY, px, py, pieceID, 0};
-                                    
-                                    Tile *sOld = &temp.tiles[selectedY][selectedX];
                                     Tile *sNew = &temp.tiles[py][px];
                                     
                                     // Récupérer la pièce capturée (si nécessaire)
@@ -953,9 +920,8 @@ static void GameLogicUpdate(Board *board, float dt)
                     }
                 }
             }
-            // -----------------------------
+
             // CAS 2 : JE DÉPLACE LA PIÈCE SÉLECTIONNÉE
-            // -----------------------------
             else 
             {
                 int startX = selectedX; 
@@ -963,7 +929,7 @@ static void GameLogicUpdate(Board *board, float dt)
                 int endX = x; 
                 int endY = y; 
                 
-                // A. Annulation (Clic sur soi-même)
+                // Annulation (Clic sur soi-même)
                 if (endX == startX && endY == startY) 
                 {
                     selectedX = -1;
@@ -972,7 +938,7 @@ static void GameLogicUpdate(Board *board, float dt)
                     return; 
                 }
 
-                // B. Vérifier si c'est un coup possible (dans la liste précalculée)
+                // Vérifier si c'est un coup possible (dans la liste précalculée)
                 bool moveAllowed = false;
                 for (int i = 0; i < possibleMoveCount; i++)
                 {
@@ -983,13 +949,11 @@ static void GameLogicUpdate(Board *board, float dt)
                     }
                 }
 
-                // C. Exécution réelle du coup si autorisé
+                // Exécution réelle du coup si autorisé
                 if (moveAllowed)
                 {
                     Tile *oldTile = &board->tiles[selectedY][selectedX]; 
                     int pieceID = oldTile->layers[oldTile->layerCount - 1];
-                    int dx = endX - startX;
-                    int dy = endY - startY;
 
                     Move actualMove = {startX, startY, endX, endY, pieceID, 0};
                     
@@ -1002,7 +966,7 @@ static void GameLogicUpdate(Board *board, float dt)
                     // On utilise MakeMove pour le déplacement et la gestion du roque
                     MakeMove(board, actualMove);
                     
-                    // --- GESTION SPÉCIALE : PROMOTION ---
+                    // GESTION SPÉCIALE : PROMOTION
                     // Pion blanc arrive en haut (0) OU Pion noir arrive en bas (7)
                     if ((pieceID == 6 && endY == 0) || (pieceID == 7 && endY == 7)) 
                     {
@@ -1012,7 +976,6 @@ static void GameLogicUpdate(Board *board, float dt)
                         promotionY = endY;
                         promotionColor = (pieceID == 7) ? 1 : 0;
                         
-                        // ATTENTION : On ne change pas le tour tout de suite !
                     }
                     else 
                     {
@@ -1039,7 +1002,7 @@ static void GameLogicUpdate(Board *board, float dt)
                     // Lancement de l'IA si nécessaire
                     if (currentTurn == ID_IA && board->mode == MODE_PLAYER_VS_IA && promotionPending == 0)
                     {
-                         board->IADelay = 3.0f; // Délai pour l'IA
+                         board->IADelay = board->AIDefaultDelay; // Délai pour l'IA
                     }
                 }
                 else 
@@ -1071,13 +1034,9 @@ static void GameLogicUpdate(Board *board, float dt)
     }
 }
 
-// ==========================================
 // 8. MISE À JOUR PRINCIPALE (UPDATE)
-// (Fusionnée, avec la logique de l'IA en plus)
-// ==========================================
 
 // Vérifie si le joueur a au moins UN coup légal qui sauve son Roi
-// Utilisé pour détecter le MAT ou le PAT (réutilise la fonction de l'IA)
 static bool HasLegalMoves(Board *board, int color)
 {
     Move movelist[MAX_MOVES];
@@ -1096,39 +1055,120 @@ void GameUpdate(Board *board, float dt)
             int centerW = GetScreenWidth() / 2;
             int centerH = GetScreenHeight() / 2;
             
-            // Bouton JcJ
+            // Bouton 1v1
             if (m.x > centerW - 150 && m.x < centerW + 150 && m.y > centerH - 60 && m.y < centerH - 60 + 50) 
             {
                 board->mode = MODE_PLAYER_VS_PLAYER;
-                board->state = STATE_PLAYING;
-                TraceLog(LOG_INFO, "Mode JcJ sélectionné.");
+                board->state = STATE_TIME_MENU;
+                TraceLog(LOG_INFO, "Mode 1v1 sélectionné. Passage au menu du temps.");
             }
-            // Bouton JcIA
+            // Bouton VS IA
             else if (m.x > centerW - 150 && m.x < centerW + 150 && m.y > centerH + 10 && m.y < centerH + 10 + 50) 
             {
+                board->state = STATE_DIFFICULTY_MENU;
+                TraceLog(LOG_INFO, "Transition vers le menu de difficulté IA.");
+            }
+        }
+    }
+    else if (board->state == STATE_TIME_MENU)
+    {
+        if (IsKeyPressed(KEY_ESCAPE))
+        {
+            board->state = STATE_MAIN_MENU;
+            return;
+        }
+        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
+        {
+            Vector2 m = GetMousePosition();
+            int centerW = GetScreenWidth() / 2;
+            int centerH = GetScreenHeight() / 2;
+
+            // 10 minutes
+
+            if (m.x > centerW - 150 && m.x < centerW + 150 && m.y > centerH - 80 && m.y < centerH - 80 + 50)
+            {
+                board->timer.blackTime = 600.0f;
+                board->timer.whiteTime = 600.0f;
+                board->mode = MODE_PLAYER_VS_PLAYER;
+                board->state = STATE_PLAYING;
+                TraceLog(LOG_INFO, "10 minutes sélectionné");
+            }
+            // 3 minutes
+
+            else if (m.x > centerW - 150 && m.x < centerW + 150 && m.y > centerH - 10 && m.y < centerH - 10 + 50)
+            {
+                board->timer.blackTime = 180.0f;
+                board->timer.whiteTime = 180.0f;
+                board->mode = MODE_PLAYER_VS_PLAYER;
+                board->state = STATE_PLAYING;
+                TraceLog(LOG_INFO, "3 minutes sélectionné");
+            }
+            // 1 minute
+            else if (m.x > centerW - 150 && m.x < centerW + 150 && m.y > centerH + 60 && m.y < centerH + 60 + 50)
+            {
+                board->timer.blackTime = 60.0f;
+                board->timer.whiteTime = 60.0f;
+                board->mode = MODE_PLAYER_VS_PLAYER;
+                board->state = STATE_PLAYING;
+                TraceLog(LOG_INFO, "1 minute sélectionné");
+            }
+        }
+    }
+    else if(board->state == STATE_DIFFICULTY_MENU)
+    {
+        if (IsKeyPressed(KEY_ESCAPE))
+        {
+            board->state = STATE_MAIN_MENU;
+            return;
+        }
+        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
+        {
+            Vector2 m = GetMousePosition();
+            int centerW = GetScreenWidth() / 2;
+            int centerH = GetScreenHeight() / 2;
+
+            // Facile
+            if (m.x > centerW - 150 && m.x < centerW + 150 && m.y > centerH - 80 && m.y < centerH - 80 + 50)
+            {
+                board->difficulty = DIFF_EASY;
+                board->AIDepth = 1;
+                board->AIDefaultDelay = 3.0f;
                 board->mode = MODE_PLAYER_VS_IA;
                 board->state = STATE_PLAYING;
-                TraceLog(LOG_INFO, "Mode Jc IA sélectionné.");
+                TraceLog(LOG_INFO, "Difficulté : Facile");
+            }
+            // Intermédiaire
+            else if (m.x > centerW - 150 && m.x < centerW + 150 && m.y >centerH - 10 && m.y < centerH - 10 + 50)
+            {
+                board->difficulty = DIFF_MEDIUM;
+                board->AIDepth = 3;
+                board->AIDefaultDelay = 2.0f;
+                board->mode = MODE_PLAYER_VS_IA;
+                board->state = STATE_PLAYING;
+                TraceLog(LOG_INFO, "Difficulté : Intermédiaire");
+            }
+            // Difficile
+            else if (m.x > centerW - 150 && m.x < centerW + 150 && m.y > centerH + 60 && m.y < centerH + 60 + 50)
+            {
+                board->difficulty = DIFF_HARD;
+                board->AIDepth = 5;
+                board->AIDefaultDelay = 1.0f;
+                board->mode = MODE_PLAYER_VS_IA;
+                board->state = STATE_PLAYING;
+                TraceLog(LOG_INFO, "Difficulté : Difficile");
             }
         }
     }
     else if (board->state == STATE_PLAYING)
     {
-        // --- A. LOGIQUE IA ---
-        if (board->mode == MODE_PLAYER_VS_IA && currentTurn == ID_IA)
-        {
-             AIMakeMove(board, dt);
-             return; // L'IA prend le contrôle total du tour
-        }
-        
-        // --- B. GESTION DU TEMPS ---
+        // GESTION DU TEMPS
         if (currentTurn == 0) {
             if (board->timer.whiteTime > 0.0f) board->timer.whiteTime -= dt; 
         } else {
             if (board->timer.blackTime > 0.0f) board->timer.blackTime -= dt; 
         }
 
-        // --- C. VÉRIFICATION DÉFAITE PAR TEMPS ---
+        // VÉRIFICATION DÉFAITE PAR TEMPS 
         if (board->timer.whiteTime <= 0.0f) {
             board->state = STATE_GAMEOVER; 
             board->winner = 1; // Noirs gagnent
@@ -1142,7 +1182,15 @@ void GameUpdate(Board *board, float dt)
             return;
         }
         
-        // --- D. GESTION ABANDON (FORFAIT) ---
+        // LOGIQUE IA 
+        if (board->mode == MODE_PLAYER_VS_IA && currentTurn == ID_IA)
+        {
+             AIMakeMove(board, dt);
+             return; // L'IA prend le contrôle total du tour
+        }
+        
+        
+        // GESTION ABANDON (FORFAIT) 
         if (IsKeyPressed(KEY_F))
         {
             board->state = STATE_GAMEOVER;
@@ -1151,7 +1199,7 @@ void GameUpdate(Board *board, float dt)
             return;
         }
 
-        // --- E. DETECTION DE FIN DE PARTIE (MAT / PAT) ---
+        // DETECTION DE FIN DE PARTIE (MAT / PAT) 
         if (promotionPending == 0 && !HasLegalMoves(board, currentTurn))
         {
             bool check = IsKingInCheck(board, currentTurn);
@@ -1171,7 +1219,7 @@ void GameUpdate(Board *board, float dt)
             return;
         }
 
-        // --- F. Mise à jour de la logique de jeu (Souris, etc.) ---
+        // Mise à jour de la logique de jeu (Souris, etc.)
         GameLogicUpdate(board, dt);
     }
     // Si la partie est terminée
@@ -1193,10 +1241,7 @@ void GameUpdate(Board *board, float dt)
     }
 }
 
-// ==========================================
-// 9. DESSIN (DRAW)
-// (Fusionnée des deux versions)
-// ==========================================
+// 9. DESSIN
 
 void GameDraw(const Board *board)
 {
@@ -1218,7 +1263,7 @@ void GameDraw(const Board *board)
     // ÉCRAN PRINCIPAL (Plateau, Timers)
     if (board->state == STATE_PLAYING || board->state == STATE_GAMEOVER)
     {
-        // --- A. DESSIN DU PLATEAU ET DES PIÈCES ---
+        // DESSIN DU PLATEAU ET DES PIÈCES
         for (int y = 0; y < BOARD_ROWS; y++) 
         {
             for (int x = 0; x < BOARD_COLS; x++) 
@@ -1244,7 +1289,7 @@ void GameDraw(const Board *board)
             }
         }
 
-        // --- B. INDICATEUR VISUEL D'ECHEC (Carré Rouge sous le Roi) ---
+        // INDICATEUR VISUEL D'ECHEC (Carré Rouge sous le Roi)
         if (board->state == STATE_PLAYING && IsKingInCheck(board, currentTurn)) 
         {
             int kingID = (currentTurn == 0) ? 10 : 11;
@@ -1262,7 +1307,7 @@ void GameDraw(const Board *board)
             }
         }
 
-        // --- C. DESSIN DES COUPS POSSIBLES (Aide visuelle) ---
+        // DESSIN DES COUPS POSSIBLES (Aide visuelle)
         for (int i = 0; i < possibleMoveCount; i++) 
         {
             int x = possibleMoves[i][0]; 
@@ -1284,7 +1329,7 @@ void GameDraw(const Board *board)
             }
         }
 
-        // --- D. DESSIN DE LA SÉLECTION (Cadre Vert) ---
+        // DESSIN DE LA SÉLECTION (Cadre Vert)
         if (selectedX != -1) 
         {
             DrawRectangleLinesEx(
@@ -1294,7 +1339,7 @@ void GameDraw(const Board *board)
             ); 
         }
 
-        // --- E. DESSIN DES TIMERS ---
+        // DESSIN DES TIMERS
         int centerTextY = offsetY + boardH / 2 - FONT_SIZE / 2;
         
         Color whiteColor = (currentTurn == 0 && board->state == STATE_PLAYING) ? RAYWHITE : DARKGRAY;
@@ -1308,7 +1353,7 @@ void GameDraw(const Board *board)
         DrawText(TextFormat("NOIRS\n%02d:%02d", blackM, blackS), offsetX + boardW + TEXT_PADDING, centerTextY, FONT_SIZE, blackColor); 
     }
 
-    // --- F. MENU DE PROMOTION (Superposé) ---
+    // MENU DE PROMOTION (Superposé)
     if (promotionPending == 1) 
     {
         DrawRectangle(0, 0, screenW, screenH, Fade(BLACK, 0.85f));
@@ -1320,7 +1365,7 @@ void GameDraw(const Board *board)
         DrawText(opts, screenW/2 - MeasureText(opts, 20)/2, screenH/2, 20, WHITE);
     }
 
-    // --- G. ECRAN DE FIN DE PARTIE (Game Over) ---
+    // ECRAN DE FIN DE PARTIE (Game Over)
     if (board->state == STATE_GAMEOVER)
     {
         DrawRectangle(0, 0, screenW, screenH, Fade(BLACK, 0.85f)); 
@@ -1378,5 +1423,64 @@ void GameDraw(const Board *board)
         // Bouton JcIA
         DrawRectangleLines(centerW - 150, centerH + 10, 300, 50, YELLOW);
         DrawText(pviaText, centerW - pviaWidth/2, centerH + 20, 30, RAYWHITE);
+    }
+
+    // Menu de difficulté IA
+    else if (board->state == STATE_DIFFICULTY_MENU)
+    {
+        int centerW = screenW / 2;
+        int centerH = screenH / 2;
+
+        DrawRectangle(0, 0, screenW, screenH, BLACK);
+
+        const char *titleText = "CHOIX DE LA DIFFICULTÉ IA";
+
+        int titleWidth = MeasureText(titleText, 60);
+
+        DrawText(titleText, centerW - titleWidth/2, centerH - 200, 60, RAYWHITE);
+
+        const char *easyText = "Facile";
+        DrawRectangleLines(centerW - 150, centerH - 80, 300, 50, GREEN);
+        DrawText(easyText, centerW - MeasureText(easyText, 25)/2, centerH - 70,25, RAYWHITE);
+
+        const char *mediumText = "Intermédiaire";
+        DrawRectangleLines(centerW - 150, centerH - 10, 300, 50, YELLOW);
+        DrawText(mediumText, centerW - MeasureText(mediumText, 25)/2, centerH, 25, RAYWHITE);
+
+        const char *hardText = "Difficile";
+        DrawRectangleLines(centerW - 150, centerH + 60, 300, 50, RED);
+        DrawText(hardText, centerW - MeasureText(hardText, 25)/2, centerH + 70,25, RAYWHITE);
+
+        const char *backText = "Appuyer sur ECHAP pour revenir au menu principal";
+        DrawText(backText, centerW - MeasureText(backText, 20)/2, screenH - 50, 20, DARKGRAY);
+    }
+    // Menu de choix temps
+    else if (board->state == STATE_TIME_MENU)
+    {
+        int centerW = screenW / 2;
+        int centerH = screenH / 2;
+
+        DrawRectangle(0, 0, screenW, screenH, BLACK);
+
+        const char *titleText = "CHOIX DU TEMPS";
+
+        int titleWidth = MeasureText(titleText, 60);
+
+        DrawText(titleText, centerW - titleWidth/2, centerH - 200, 60, RAYWHITE);
+
+        const char *dixminText = "10 minutes";
+        DrawRectangleLines(centerW - 150, centerH - 80, 300, 50, YELLOW);
+        DrawText(dixminText, centerW - MeasureText(dixminText, 25)/2, centerH - 70,25, RAYWHITE);
+
+        const char *troisminText = "3 minutes";
+        DrawRectangleLines(centerW - 150, centerH - 10, 300, 50, YELLOW);
+        DrawText(troisminText, centerW - MeasureText(troisminText, 25)/2, centerH, 25, RAYWHITE);
+
+        const char *uneminText = "1 minute";
+        DrawRectangleLines(centerW - 150, centerH + 60, 300, 50, YELLOW);
+        DrawText(uneminText, centerW - MeasureText(uneminText, 25)/2, centerH + 70,25, RAYWHITE);
+
+        const char *backText = "Appuyer sur ECHAP pour revenir au menu principal";
+        DrawText(backText, centerW - MeasureText(backText, 20)/2, screenH - 50, 20, DARKGRAY);
     }
 }

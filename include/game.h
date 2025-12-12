@@ -8,6 +8,7 @@
 #define BOARD_ROWS 8
 #define MAX_LAYERS 4
 #define INFINITY 2000000
+#define INFINITY_SCORE 999999
 #define MAX_MOVES 256 // Augmenté pour la génération de coups
 #define BOARD_SIZE 8
 #define ID_IA 1 // ID du joueur IA (Noir)
@@ -21,9 +22,18 @@ typedef struct
 typedef enum // Etat possible du jeu
 {
     STATE_MAIN_MENU, // Etat : sur le menu <- NOUVEL ÉTAT INITIAL
+    STATE_DIFFICULTY_MENU, // Choix de la difficulté de l'IA
+    STATE_TIME_MENU, // Choix du temps données aux joueurs
     STATE_PLAYING, // Etat : En jeu
     STATE_GAMEOVER // Etat : Fin du jeu
 } GameState;
+
+typedef enum // Niveau de difficulté
+{
+    DIFF_EASY, // Depth = 1, Delay = 3s
+    DIFF_MEDIUM, // Depth = 3, Delay = 2s
+    DIFF_HARD // Depth = 5, Delay = 1s
+} AIDifficulty;
 
 typedef enum
 {
@@ -37,7 +47,7 @@ typedef enum
     TURN_PLAYER,
     TURN_IA_WAITING,
     TURN_IA_MOVING
-}TurnState;
+} TurnState;
 
 typedef struct
 {
@@ -45,7 +55,7 @@ typedef struct
     int endX, endY; // Après le mouvement
     int movingPieceID; // Quel pièce est joué
     int capturedPieceID; // Stocke la pièce mangé si y'en a une
-}Move;
+} Move;
 
 typedef struct 
 {
@@ -61,8 +71,11 @@ typedef struct
     GameMode mode;
     int winner; // 0 = Blanc, 1 = Noir, -1 = Non-défini
     Move move;
-    float IADelay;
+    float IADelay; // Délai avant que l'IA puisse jouer
     TurnState turnState;
+    AIDifficulty difficulty; // Difficulté choisie
+    int AIDepth; // Profondeur AlphaBeta
+    float AIDefaultDelay; // Délai par défaut
 } Board;
 
 void GameInit(Board *board);
