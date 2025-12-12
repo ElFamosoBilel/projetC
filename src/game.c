@@ -11,6 +11,10 @@
 extern Texture2D gTileTextures[]; 
 extern int gTileTextureCount; 
 
+extern Sound gPieceSound;
+extern Sound gCheckSound;
+extern Sound gEatingSound;
+
 // VARIABLES GLOBALES
 int selectedX = -1; 
 int selectedY = -1; 
@@ -954,17 +958,22 @@ static void GameLogicUpdate(Board *board, float dt)
                 {
                     Tile *oldTile = &board->tiles[selectedY][selectedX]; 
                     int pieceID = oldTile->layers[oldTile->layerCount - 1];
-
                     Move actualMove = {startX, startY, endX, endY, pieceID, 0};
-                    
+
+                    PlaySound(gPieceSound);
                     // Pré-calcul de la pièce capturée
                     if (clickedTile->layerCount > 1) 
                     {
                         actualMove.capturedPieceID = clickedTile->layers[clickedTile->layerCount - 1];
                     }
-
+                    if (actualMove.capturedPieceID != 0) 
+                    {
+                         PlaySound(gEatingSound);
+                    }
+                    
                     // On utilise MakeMove pour le déplacement et la gestion du roque
                     MakeMove(board, actualMove);
+                    
                     
                     // GESTION SPÉCIALE : PROMOTION
                     // Pion blanc arrive en haut (0) OU Pion noir arrive en bas (7)
@@ -986,6 +995,11 @@ static void GameLogicUpdate(Board *board, float dt)
                         }
                     }
 
+                    if (board->state != STATE_GAMEOVER && promotionPending == 0 && IsKingInCheck(board, currentTurn))
+                    {
+                        PlaySound(gCheckSound);
+                        TraceLog(LOG_INFO, "ROI EN ECHEC !");
+                    }
                     // Vérification de victoire par capture de Roi
                     if (actualMove.capturedPieceID == 10 || actualMove.capturedPieceID == 11)
                     {

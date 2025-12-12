@@ -5,6 +5,10 @@
 Texture2D gTileTextures[32];
 int gTileTextureCount = 0;
 
+Sound gPieceSound = { 0 };
+Sound gCheckSound = { 0 };
+Sound gEatingSound = { 0 };
+
 int main(void)
 {
     // Permet de prendre la taille du moniteur de l'utilisateur
@@ -14,6 +18,7 @@ int main(void)
     InitWindow(screenW, screenH, "Raylib Board Game");
     ToggleFullscreen(); // met en plein écran
 
+    InitAudioDevice();
     // Chargement des textures
     gTileTextures[0] = LoadTexture("assets/carreau_blanc.png");
     gTileTextures[1] = LoadTexture("assets/carreau_noir.png");
@@ -30,7 +35,14 @@ int main(void)
     gTileTextures[12] = LoadTexture("assets/tour_blanche.png");
     gTileTextures[13] = LoadTexture("assets/tour_noir.png");
     gTileTextureCount = 14;
-    
+
+    gPieceSound = LoadSound("assets/piece_sound.mp3");
+    gCheckSound = LoadSound("assets/echec_sound.mp3");
+    gEatingSound = LoadSound("assets/eating_sound.mp3");
+    SetSoundVolume(gPieceSound, 2.0f);
+    SetSoundVolume(gCheckSound, 1.5f);
+    SetSoundVolume(gEatingSound, 1.5f);
+
     Board board = {0}; // Met tous les membres à 0
     GameInit(&board); // Appelle le Gameinit de game
 
@@ -47,6 +59,12 @@ int main(void)
 
         EndDrawing();
     }
+
+    UnloadSound(gPieceSound);
+    UnloadSound(gCheckSound);
+    UnloadSound(gEatingSound);
+
+    CloseAudioDevice();
 
     // Libération mémoire
     for (int i = 0; i < gTileTextureCount; i++)
