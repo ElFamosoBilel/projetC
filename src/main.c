@@ -7,12 +7,24 @@ int gTileTextureCount = 0;
 
 int main(void)
 {
-    // Permet de prendre la taille du moniteur de l'utilisateur
-    int screenW = GetMonitorWidth(0);
-    int screenH = GetMonitorHeight(0);
+    // ===============================================================
+    // VERSION FENÊTRE MAXIMISÉE (Sûre et Nette)
+    // ===============================================================
 
-    InitWindow(screenW, screenH, "Raylib Board Game");
-    ToggleFullscreen(); // met en plein écran
+    // 1. FLAG_WINDOW_HIGHDPI : Indispensable pour que ce soit NET (Retina)
+    // 2. FLAG_WINDOW_RESIZABLE : Permet de redimensionner la fenêtre si besoin
+    // 3. FLAG_VSYNC_HINT : Évite les scintillements
+    SetConfigFlags(FLAG_WINDOW_HIGHDPI | FLAG_WINDOW_RESIZABLE | FLAG_VSYNC_HINT);
+
+    // On initialise une fenêtre avec une taille standard confortable.
+    // Raylib va gérer la densité de pixels automatiquement grâce au flag HighDPI.
+    InitWindow(1280, 900, "Raylib Board Game");
+
+    // On demande à la fenêtre de prendre toute la place disponible sur le bureau
+    // (Sans passer en mode "Plein écran exclusif" qui faisait bugger le Mac)
+    MaximizeWindow();
+
+    // ===============================================================
 
     // Chargement des textures
     gTileTextures[0] = LoadTexture("assets/carreau_blanc.png");
@@ -31,19 +43,19 @@ int main(void)
     gTileTextures[13] = LoadTexture("assets/tour_noir.png");
     gTileTextureCount = 14;
     
-    Board board = {0}; // Met tous les membres à 0
-    GameInit(&board); // Appelle le Gameinit de game
+    Board board = {0}; 
+    GameInit(&board); 
 
     while (!WindowShouldClose())
     {
-        float dt = GetFrameTime(); // Temps écoulé depuis la derniere image
+        float dt = GetFrameTime(); 
 
-        GameUpdate(&board, dt); // Appelle le GameUpdate de game
+        GameUpdate(&board, dt); 
 
-        BeginDrawing(); // Dessin
-        ClearBackground(BLACK);  // Le fond
+        BeginDrawing(); 
+        ClearBackground(BLACK);  
 
-        GameDraw(&board); // Dessin l'échiquier et tout se qui va avec
+        GameDraw(&board); 
 
         EndDrawing();
     }
@@ -55,5 +67,5 @@ int main(void)
     }
 
     CloseWindow();
-    return 0; // Termine l'éxécution
+    return 0; 
 }
