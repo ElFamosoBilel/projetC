@@ -8,33 +8,43 @@ int gTileTextureCount = 0;
 int main(void)
 {
     // ===============================================================
-    // MODE FENÊTRÉ REDIMENSIONNABLE (Le bouton vert marchera !)
+    // CONFIGURATION INTELLIGENTE (WINDOWS vs MAC)
     // ===============================================================
     
-    // 1. FLAG_WINDOW_RESIZABLE : C'est la clé ! Ça autorise à agrandir la fenêtre manuellement.
-    // 2. FLAG_WINDOW_HIGHDPI : Pour que ce soit net sur Mac.
-    SetConfigFlags(FLAG_WINDOW_HIGHDPI | FLAG_VSYNC_HINT | FLAG_WINDOW_RESIZABLE);
+    // On part sur une base commune : Redimensionnable + VSync
+    unsigned int flags = FLAG_WINDOW_RESIZABLE | FLAG_VSYNC_HINT;
 
-    // On initialise une fenêtre de base
+    // MAGIE DU C : Ce bloc ne s'active que si on compile sur Mac (__APPLE__)
+    #if defined(__APPLE__)
+        flags |= FLAG_WINDOW_HIGHDPI; // Ajoute le HighDPI pour Mac (netteté)
+    #endif
+
+    // Note : Sur Windows, on N'AJOUTE PAS le HighDPI, car c'est lui qui crée
+    // l'effet "zoomé" si ton écran est réglé à 125% ou 150% dans les paramètres Windows.
+
+    SetConfigFlags(flags);
+
+    // ===============================================================
+
+    // Initialisation
     InitWindow(800, 600, "Raylib Board Game");
 
-    // On la redimensionne tout de suite pour qu'elle soit confortable (90% de l'écran)
+    // Calcul de la taille de l'écran
     int monitor = GetCurrentMonitor();
     int screenW = GetMonitorWidth(monitor);
     int screenH = GetMonitorHeight(monitor);
-    
+
+    // Taille cible : 90% de l'écran
     int windowWidth = (int)(screenW * 0.90f);
     int windowHeight = (int)(screenH * 0.90f);
 
     SetWindowSize(windowWidth, windowHeight);
     SetWindowPosition((screenW - windowWidth) / 2, (screenH - windowHeight) / 2);
-
-    // IMPORTANT : On définit une taille minimale pour éviter de tout casser si on réduit trop
+    
+    // Taille minimale pour éviter de casser l'affichage
     SetWindowMinSize(400, 400);
 
-    // ===============================================================
-
-    // Chargement des textures
+    // Chargement des assets
     gTileTextures[0] = LoadTexture("assets/carreau_blanc.png");
     gTileTextures[1] = LoadTexture("assets/carreau_noir.png");
     gTileTextures[2] = LoadTexture("assets/cavalier_blanc.png");
@@ -57,9 +67,6 @@ int main(void)
     while (!WindowShouldClose())
     {
         float dt = GetFrameTime(); 
-
-        // Si tu redimensionnes la fenêtre, Raylib mettra à jour GetScreenWidth/Height
-        // et ton GameDraw s'adaptera automatiquement.
         GameUpdate(&board, dt); 
 
         BeginDrawing(); 
