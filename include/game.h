@@ -7,6 +7,8 @@ extern Sound gPieceSound;
 extern Sound gCheckSound;
 extern Sound gEatingSound;
 
+extern Texture2D gMenuBackground;
+
 #define TILE_SIZE 32
 #define BOARD_COLS 8
 #define BOARD_ROWS 8

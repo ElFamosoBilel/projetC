@@ -691,6 +691,7 @@ static void AIMakeMove(Board *board, float dt)
         {
             // Effectuer le coup (utilise MakeMove pour ne pas dupliquer la logique)
             MakeMove(board, bestMove);
+            PlaySound(gPieceSound);
 
             // Gérer la promotion de l'IA (Pion arrive en ligne 7)
             Tile *endTile = &board->tiles[bestMove.endY][bestMove.endX];
@@ -1277,6 +1278,11 @@ void GameDraw(const Board *board)
     // ÉCRAN PRINCIPAL (Plateau, Timers)
     if (board->state == STATE_PLAYING || board->state == STATE_GAMEOVER)
     {
+        Rectangle sourceRec = { 0.0f, 0.0f, (float)gMenuBackground.width, (float)gMenuBackground.height };
+        Rectangle destRec = { 0.0f, 0.0f, (float)screenW, (float)screenH };
+        Vector2 origin = { 0.0f, 0.0f };
+        DrawTexturePro(gMenuBackground, sourceRec, destRec, origin, 0.0f, WHITE);
+        
         // DESSIN DU PLATEAU ET DES PIÈCES
         for (int y = 0; y < BOARD_ROWS; y++) 
         {
@@ -1417,7 +1423,10 @@ void GameDraw(const Board *board)
         int centerW = screenW / 2;
         int centerH = screenH / 2;
         
-        DrawRectangle(0, 0, screenW, screenH, BLACK);
+        Rectangle sourceRec = { 0.0f, 0.0f, (float)gMenuBackground.width, (float)gMenuBackground.height };
+        Rectangle destRec = { 0.0f, 0.0f, (float)screenW, (float)screenH };
+        Vector2 origin = { 0.0f, 0.0f };
+        DrawTexturePro(gMenuBackground, sourceRec, destRec, origin, 0.0f, WHITE);
         
         const char *titleText = "JEU D'ÉCHECS";
         const char *pvpText = "1 v 1";
@@ -1431,11 +1440,11 @@ void GameDraw(const Board *board)
         DrawText(titleText, centerW - titleWidth/2, centerH - 200, 80, RAYWHITE);
 
         // Bouton JcJ
-        DrawRectangleLines(centerW - 150, centerH - 60, 300, 50, GREEN);
+        DrawRectangleLines(centerW - 150, centerH - 60, 300, 50, YELLOW);
         DrawText(pvpText, centerW - pvpWidth/2, centerH - 50, 30, RAYWHITE);
         
-        // Bouton JcIA
-        DrawRectangleLines(centerW - 150, centerH + 10, 300, 50, YELLOW);
+        // Bouton IA
+        DrawRectangleLines(centerW - 150, centerH + 10, 300, 50, BLUE);
         DrawText(pviaText, centerW - pviaWidth/2, centerH + 20, 30, RAYWHITE);
     }
 
@@ -1445,8 +1454,11 @@ void GameDraw(const Board *board)
         int centerW = screenW / 2;
         int centerH = screenH / 2;
 
-        DrawRectangle(0, 0, screenW, screenH, BLACK);
-
+        Rectangle sourceRec = { 0.0f, 0.0f, (float)gMenuBackground.width, (float)gMenuBackground.height };
+        Rectangle destRec = { 0.0f, 0.0f, (float)screenW, (float)screenH };
+        Vector2 origin = { 0.0f, 0.0f };
+        DrawTexturePro(gMenuBackground, sourceRec, destRec, origin, 0.0f, WHITE);
+        
         const char *titleText = "CHOIX DE LA DIFFICULTÉ IA";
 
         int titleWidth = MeasureText(titleText, 60);
@@ -1474,8 +1486,11 @@ void GameDraw(const Board *board)
         int centerW = screenW / 2;
         int centerH = screenH / 2;
 
-        DrawRectangle(0, 0, screenW, screenH, BLACK);
-
+        Rectangle sourceRec = { 0.0f, 0.0f, (float)gMenuBackground.width, (float)gMenuBackground.height };
+        Rectangle destRec = { 0.0f, 0.0f, (float)screenW, (float)screenH };
+        Vector2 origin = { 0.0f, 0.0f };
+        DrawTexturePro(gMenuBackground, sourceRec, destRec, origin, 0.0f, WHITE);
+        
         const char *titleText = "CHOIX DU TEMPS";
 
         int titleWidth = MeasureText(titleText, 60);

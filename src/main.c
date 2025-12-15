@@ -4,6 +4,7 @@
 // Gestionnaire de texture
 Texture2D gTileTextures[32];
 int gTileTextureCount = 0;
+Texture2D gMenuBackground = { 0 };
 
 Sound gPieceSound = { 0 };
 Sound gCheckSound = { 0 };
@@ -36,6 +37,7 @@ int main(void)
     gTileTextures[13] = LoadTexture("assets/tour_noir.png");
     gTileTextureCount = 14;
 
+    gMenuBackground = LoadTexture("assets/fond_bois.jpg");
     gPieceSound = LoadSound("assets/piece_sound.mp3");
     gCheckSound = LoadSound("assets/echec_sound.mp3");
     gEatingSound = LoadSound("assets/eating_sound.mp3");
@@ -63,6 +65,8 @@ int main(void)
     UnloadSound(gPieceSound);
     UnloadSound(gCheckSound);
     UnloadSound(gEatingSound);
+
+    UnloadTexture(gMenuBackground);
 
     CloseAudioDevice();
 
