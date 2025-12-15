@@ -4,6 +4,11 @@
 // Gestionnaire de texture
 Texture2D gTileTextures[32];
 int gTileTextureCount = 0;
+Texture2D gMenuBackground = { 0 };
+
+Sound gPieceSound = { 0 };
+Sound gCheckSound = { 0 };
+Sound gEatingSound = { 0 };
 
 int main(void)
 {
@@ -74,6 +79,14 @@ int main(void)
         GameDraw(&board); 
         EndDrawing();
     }
+
+    UnloadSound(gPieceSound);
+    UnloadSound(gCheckSound);
+    UnloadSound(gEatingSound);
+
+    UnloadTexture(gMenuBackground);
+
+    CloseAudioDevice();
 
     // Libération mémoire
     for (int i = 0; i < gTileTextureCount; i++)
