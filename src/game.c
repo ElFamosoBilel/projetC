@@ -691,6 +691,7 @@ static void AIMakeMove(Board *board, float dt)
         {
             // Effectuer le coup (utilise MakeMove pour ne pas dupliquer la logique)
             MakeMove(board, bestMove);
+            board->lastMove = bestMove;
             PlaySound(gPieceSound);
 
             // Gérer la promotion de l'IA (Pion arrive en ligne 7)
@@ -797,6 +798,12 @@ void GameInit(Board *board)
     selectedY = -1;
     possibleMoveCount = 0;
     promotionPending = 0;
+    board->lastMove.startX = -1;
+    board->lastMove.startY = -1;
+    board->lastMove.endX = -1;
+    board->lastMove.endY = -1;
+    board->lastMove.movingPieceID = -1;
+    board->lastMove.capturedPieceID = 0;
 }
 
 // Raccourci pour redémarrer
@@ -961,20 +968,25 @@ static void GameLogicUpdate(Board *board, float dt)
                     int pieceID = oldTile->layers[oldTile->layerCount - 1];
                     Move actualMove = {startX, startY, endX, endY, pieceID, 0};
 
-                    PlaySound(gPieceSound);
                     // Pré-calcul de la pièce capturée
-                    if (clickedTile->layerCount > 1) 
+                    if (clickedTile->layerCount > 1)
                     {
                         actualMove.capturedPieceID = clickedTile->layers[clickedTile->layerCount - 1];
                     }
-                    if (actualMove.capturedPieceID != 0) 
+
+                    if (actualMove.capturedPieceID != 0)
                     {
-                         PlaySound(gEatingSound);
+                        PlaySound(gEatingSound);
                     }
-                    
-                    // On utilise MakeMove pour le déplacement et la gestion du roque
+
+                    PlaySound(gPieceSound);
+
+                    // On effectue le déplacement
                     MakeMove(board, actualMove);
-                    
+
+                    // ✅ Maintenant seulement, on enregistre le coup final pour l'affichage
+                    board->lastMove = actualMove;
+
                     
                     // GESTION SPÉCIALE : PROMOTION
                     // Pion blanc arrive en haut (0) OU Pion noir arrive en bas (7)
@@ -1292,10 +1304,38 @@ void GameDraw(const Board *board)
                 int dX = offsetX + x * tileSize; 
                 int dY = offsetY + y * tileSize;
 
-                // Dessin des couches (Sol + Pièce éventuelle)
-                for (int i = 0; i < t->layerCount; i++) 
+                if (t->layerCount > 0)
+                {
+                     DrawTexturePro(
+                        gTileTextures[t->layers[0]], // On prend toujours le sol
+                        (Rectangle){0, 0, gTileTextures[t->layers[0]].width, gTileTextures[t->layers[0]].height},
+                        (Rectangle){(float)dX, (float)dY, (float)tileSize, (float)tileSize},
+                        (Vector2){0,0}, 0, WHITE
+                    ); 
+                }
+                
+                // Vérifie si un coup valide a été enregistré (movingPieceID != -1)
+                if (board->lastMove.movingPieceID != -1)
+                {
+                    // Surlignage de la case de DÉPART du dernier coup
+                    if (x == board->lastMove.startX && y == board->lastMove.startY)
+                    {
+                        DrawRectangle(dX, dY, tileSize, tileSize, Fade(YELLOW, 0.3f)); 
+                    }
+
+                    // Surlignage de la case d'ARRIVÉE du dernier coup
+                    if (x == board->lastMove.endX && y == board->lastMove.endY)
+                    {
+                        DrawRectangle(dX, dY, tileSize, tileSize, Fade(YELLOW, 0.3f)); 
+                    }
+                }
+
+                // 3. Dessin des PIÈCES (Couche 1, 2, 3...)
+                // Nous ne commençons qu'à l'index 1 (après le sol) s'il y a d'autres couches
+                for (int i = 1; i < t->layerCount; i++) 
                 {
                     int idx = t->layers[i];
+                    
                     DrawTexturePro(
                         gTileTextures[idx],
                         (Rectangle){0, 0, gTileTextures[idx].width, gTileTextures[idx].height},
@@ -1303,8 +1343,7 @@ void GameDraw(const Board *board)
                         (Vector2){0,0}, 0, WHITE
                     ); 
                 }
-                
-                // Bordure grise discrète
+                // 4. Bordure grise discrète
                 DrawRectangleLines(dX, dY, tileSize, tileSize, Fade(DARKGRAY, 0.3f));
             }
         }
