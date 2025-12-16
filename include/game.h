@@ -18,6 +18,7 @@ extern Texture2D gMenuBackground;
 #define MAX_MOVES 256 // Augmenté pour la génération de coups
 #define BOARD_SIZE 8
 #define ID_IA 1 // ID du joueur IA (Noir)
+#define MAX_CAPTURED_PIECES 8 // 8 pions sont le maximum de pièces capturées du même type
 
 typedef struct
 {
@@ -83,6 +84,10 @@ typedef struct
     int AIDepth; // Profondeur AlphaBeta
     float AIDefaultDelay; // Délai par défaut
     Move lastMove; // Stocke le dernier coup
+    int whiteCapturedPieces[MAX_CAPTURED_PIECES]; // Les pieces capturé par les blancs
+    int whiteCapturedCount;
+    int blackCapturedPieces[MAX_CAPTURED_PIECES]; // Les pieces capturé par les noirs
+    int blackCapturedCount;
 } Board;
 
 void GameInit(Board *board);
