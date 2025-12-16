@@ -82,6 +82,7 @@ typedef struct
     AIDifficulty difficulty; // Difficulté choisie
     int AIDepth; // Profondeur AlphaBeta
     float AIDefaultDelay; // Délai par défaut
+    Move lastMove; // Stocke le dernier coup
 } Board;
 
 void GameInit(Board *board);
