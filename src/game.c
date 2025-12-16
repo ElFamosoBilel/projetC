@@ -3,6 +3,13 @@
 #include <stdlib.h> 
 #include <stdbool.h> // Ajout pour bool et les fonctions
 
+// PROTOTYPES (OBLIGATOIRES)
+static bool IsKingInCheck(const Board *board, int kingColor);
+static bool IsSquareAttacked(const Board *board, int x, int y, int color);
+static bool IsMoveValid(const Board *board, int startX, int startY, int endX, int endY);
+static bool IsPathClear(const Board *board, int startX, int startY, int endX, int endY);
+static bool isSimulation = false;
+
 // Ajout des fonctions min et max pour l'AlphaBeta
 #define min(a, b) ((a) < (b) ? (a) : (b))
 #define max(a, b) ((a) > (b) ? (a) : (b))
@@ -29,6 +36,15 @@ int promotionColor = -1;
 // Gestion des coups possibles (pour l'affichage des ronds/cadres rouges)
 static int possibleMoves[MAX_MOVES][2]; 
 static int possibleMoveCount = 0; 
+
+// ROQUE : suivi des déplacements (0 = jamais bougé)
+static bool kingMoved[2] = { false, false }; // [0]=Blanc, [1]=Noir
+
+// Tours : [couleur][0=gauche, 1=droite]
+static bool rookMoved[2][2] = {
+    { false, false }, // Blanc
+    { false, false }  // Noir
+};
 
 // FONCTIONS UTILITAIRES
 
@@ -202,44 +218,50 @@ static bool IsMoveValid(const Board *board, int startX, int startY, int endX, in
         // ROQUE
         else if (dy == 0 && (dx == 2 || dx == -2))
         {
-            // chemin clair et tour présente.
-            int rookX = (dx == 2) ? startX + 3 : startX - 4; // Colonne 7 ou 0  
-            if (rookX >= 0 && rookX < BOARD_COLS) 
+            // Roi déjà déplacé
+            if (kingMoved[currentTurnColor])
+                return false;
+
+            // Tour déjà déplacée
+            int rookSide = (dx == 2) ? 1 : 0; // 0=gauche, 1=droite
+            if (rookMoved[currentTurnColor][rookSide])
+                return false;
+
+            if (IsKingInCheck(board, currentTurnColor))
+                return false;
+
+            int rookX = (dx == 2) ? startX + 3 : startX - 4;
+
+            const Tile *rookTile = &board->tiles[startY][rookX];
+            if (rookTile->layerCount <= 1) return false;
+
+            int rookID = rookTile->layers[rookTile->layerCount - 1];
+            bool correctRook =
+                (currentTurnColor == 0 && rookID == 12) ||
+                (currentTurnColor == 1 && rookID == 13);
+
+            if (!correctRook) return false;
+
+            int step = (dx > 0) ? 1 : -1;
+
+            // Cases VIDES entre roi et tour
+            for (int x = startX + step; x != rookX; x += step)
             {
-                const Tile *rookTile = &board->tiles[startY][rookX];
-
-                if (rookTile->layerCount > 1)
-                {
-                    int rookID = rookTile->layers[rookTile->layerCount - 1];
-                    // Vérifie si la pièce est la bonne Tour (blanche/noire)
-                    bool correctRook =
-                        (currentTurnColor == 0 && rookID == 12) ||
-                        (currentTurnColor == 1 && rookID == 13);
-
-                    if (correctRook)
-                    {
-                        // Vérifie si le chemin est clair entre Roi et Tour
-                        int step = (dx > 0) ? 1 : -1;
-                        bool pathClear = true;
-                        for (int x = startX + step; x != rookX; x += step)
-                        {
-                            if (board->tiles[startY][x].layerCount > 1)
-                            {
-                                pathClear = false;
-                                break;
-                            }
-                        }
-                        
-                        // Si le chemin est clair, on valide le match physique
-                        if (pathClear)
-                        {
-                            ruleMatch = true;
-                        }
-                    }
-                }
+                if (board->tiles[startY][x].layerCount > 1)
+                    return false;
             }
+
+            //  Cases NON ATTAQUÉES (roi → intermédiaire → arrivée)
+            for (int x = startX; x != endX + step; x += step)
+            {
+                if (IsSquareAttacked(board, x, startY, currentTurnColor))
+                    return false;
+            }
+
+            ruleMatch = true;
         }
     }
+    
 
     // CAVALIER (ID 2 Blanc, 3 Noir)
     else if (pieceID == 2 || pieceID == 3) 
@@ -382,6 +404,71 @@ static bool IsKingInCheck(const Board *board, int kingColor)
     return false;
 }
 
+static bool IsSquareAttacked(const Board *board, int x, int y, int color)
+{
+    for (int sy = 0; sy < BOARD_ROWS; sy++)
+    {
+        for (int sx = 0; sx < BOARD_COLS; sx++)
+        {
+            const Tile *t = &board->tiles[sy][sx];
+            if (t->layerCount <= 1) continue;
+
+            int pieceID = t->layers[t->layerCount - 1];
+            int pieceColor = GetPieceColor(pieceID);
+
+            if (pieceColor != 1 - color) continue;
+
+            int dx = x - sx;
+            int dy = y - sy;
+
+            // PIONS
+            if (pieceID == 6 || pieceID == 7)
+            {
+                int dir = (pieceColor == 0) ? -1 : 1;
+                if (abs(dx) == 1 && dy == dir)
+                    return true;
+            }
+
+            // CAVALIERS
+            else if (pieceID == 2 || pieceID == 3)
+            {
+                if ((abs(dx) == 1 && abs(dy) == 2) || (abs(dx) == 2 && abs(dy) == 1))
+                    return true;
+            }
+
+            // ROI (attaque 1 case SEULEMENT, PAS DE ROQUE)
+            else if (pieceID == 10 || pieceID == 11)
+            {
+                if (abs(dx) <= 1 && abs(dy) <= 1)
+                    return true;
+            }
+
+            // FOU
+            else if (pieceID == 4 || pieceID == 5)
+            {
+                if (abs(dx) == abs(dy) && IsPathClear(board, sx, sy, x, y))
+                    return true;
+            }
+
+            // TOUR
+            else if (pieceID == 12 || pieceID == 13)
+            {
+                if ((dx == 0 || dy == 0) && IsPathClear(board, sx, sy, x, y))
+                    return true;
+            }
+
+            // REINE
+            else if (pieceID == 8 || pieceID == 9)
+            {
+                if (((dx == 0 || dy == 0) || abs(dx) == abs(dy)) &&
+                    IsPathClear(board, sx, sy, x, y))
+                    return true;
+            }
+        }
+    }
+    return false;
+}
+
 // LOGIQUE DE L'IA
 
 // Effectue le coup (déplace la pièce, gère la capture, le roque)
@@ -405,6 +492,23 @@ static void MakeMove(Board *board, Move move)
     int pieceID = TilePop(startTile); // Retire la pièce de départ
     TilePush (endTile, pieceID); // Place la pièce sur la nouvelle case
 
+    // Marquer le déplacement du roi
+    if (!isSimulation)
+    {
+        if (pieceID == 10 || pieceID == 11)
+        {
+            kingMoved[GetPieceColor(pieceID)] = true;
+        }
+
+        if (pieceID == 12 || pieceID == 13)
+        {
+            int color = GetPieceColor(pieceID);
+            if (move.startX == 0) rookMoved[color][0] = true;
+            if (move.startX == 7) rookMoved[color][1] = true;
+        }
+    }
+
+
     // Logique du roque si c'est un coup de roque
     if ((pieceID == 10 || pieceID == 11) && abs(move.endX - move.startX) == 2)
     {
@@ -424,7 +528,7 @@ static void UnmakeMove(Board *board, Move move)
 {
     Tile *startTile = &board->tiles[move.startY][move.startX]; // Case départ originale
     Tile *endTile = &board->tiles[move.endY][move.endX]; // Case arrivée origniale
-    
+
     // Déplacer la pièce qui a bougé
     int pieceID = TilePop(endTile); // Supprime la pièce tout en la stockant
     TilePush(startTile, pieceID); // Replace la pièce à son ancienne position
@@ -487,6 +591,7 @@ static int GenerateLegalMoves(Board *board, Move movelist[], int playerColor)
                         }
                         
                         // On simule le coup
+                        isSimulation = true;
                         MakeMove(board, m); 
                         
                         // Si le roi n'est PAS en échec après le coup, c'est un coup légal
@@ -500,6 +605,7 @@ static int GenerateLegalMoves(Board *board, Move movelist[], int playerColor)
                         
                         // Annuler le coup pour revenir à la position de départ
                         UnmakeMove(board, m); 
+                        isSimulation = false;
                     }
                 }
             }
@@ -589,9 +695,11 @@ static int AlphaBeta(Board *b, int profondeur, int a, int beta, bool isMax, int 
         for (int i = 0; i < count; i++) 
         {
             Move m = LocalMoveList[i];
+            isSimulation = true;
             MakeMove(b, m); 
             int eval = AlphaBeta(b, profondeur - 1, a, beta, false, 1 - playerTurn); 
             UnmakeMove(b, m); 
+            isSimulation = false;
             maxEval = max(maxEval, eval);
             a = max(a, eval); 
             if (beta <= a) break; 
@@ -604,9 +712,11 @@ static int AlphaBeta(Board *b, int profondeur, int a, int beta, bool isMax, int 
         for (int i = 0; i < count; i++)
         {
             Move m = LocalMoveList[i];
+            isSimulation = true;
             MakeMove(b , m);
             int eval = AlphaBeta(b, profondeur - 1, a, beta, true, 1 - playerTurn);
             UnmakeMove(b, m);
+            isSimulation = false;
             minEval = min(minEval, eval);
             beta = min(beta, eval);
             if (beta <= a) break;
@@ -634,11 +744,13 @@ static Move FindBestMove(Board *board, int depth)
     for (int i = 0; i < count; i++)
     {
         Move move = legalMoves[i];
+        isSimulation = true;
         MakeMove(board, move);
         // L'IA joue (Min) si elle est Noir (1), et Max si elle est Blanc (0)
         // L'appel AlphaBeta va évaluer la position du point de vue de l'adversaire (1 - playerTurn)
         int eval = AlphaBeta(board, depth - 1, -INFINITY_SCORE, INFINITY_SCORE, (playerTurn == 0) ? false : true, 1 - playerTurn);
         UnmakeMove(board, move);
+        isSimulation = false;
         
         // Mise à jour du meilleur coup trouvé
         if (playerTurn == 0) // Blanc (Maximise)
@@ -804,6 +916,10 @@ void GameInit(Board *board)
     board->lastMove.endY = -1;
     board->lastMove.movingPieceID = -1;
     board->lastMove.capturedPieceID = 0;
+    kingMoved[0] = kingMoved[1] = false;
+    rookMoved[0][0] = rookMoved[0][1] = false;
+    rookMoved[1][0] = rookMoved[1][1] = false;
+
 }
 
 // Raccourci pour redémarrer
@@ -916,6 +1032,7 @@ static void GameLogicUpdate(Board *board, float dt)
                                     }
 
                                     // Faire le coup simulé
+                                    isSimulation = true;
                                     MakeMove(&temp, m);
                                     
                                     // Si ce coup ne met pas mon Roi en échec, je l'ajoute à la liste affichée
@@ -925,6 +1042,7 @@ static void GameLogicUpdate(Board *board, float dt)
                                         possibleMoves[possibleMoveCount][1] = py;
                                         possibleMoveCount++;
                                     }
+                                    isSimulation = false;
                                 }
                             }
                         }
