@@ -802,7 +802,7 @@ void GameInit(Board *board)
     board->lastMove.startY = -1;
     board->lastMove.endX = -1;
     board->lastMove.endY = -1;
-    board->lastMove.movingPieceID = 0;
+    board->lastMove.movingPieceID = -1;
     board->lastMove.capturedPieceID = 0;
 }
 
@@ -967,22 +967,26 @@ static void GameLogicUpdate(Board *board, float dt)
                     Tile *oldTile = &board->tiles[selectedY][selectedX]; 
                     int pieceID = oldTile->layers[oldTile->layerCount - 1];
                     Move actualMove = {startX, startY, endX, endY, pieceID, 0};
-                    
-                    board->lastMove = actualMove;
-                    PlaySound(gPieceSound);
+
                     // Pré-calcul de la pièce capturée
-                    if (clickedTile->layerCount > 1) 
+                    if (clickedTile->layerCount > 1)
                     {
                         actualMove.capturedPieceID = clickedTile->layers[clickedTile->layerCount - 1];
                     }
-                    if (actualMove.capturedPieceID != 0) 
+
+                    if (actualMove.capturedPieceID != 0)
                     {
-                         PlaySound(gEatingSound);
+                        PlaySound(gEatingSound);
                     }
-                    
-                    // On utilise MakeMove pour le déplacement et la gestion du roque
+
+                    PlaySound(gPieceSound);
+
+                    // On effectue le déplacement
                     MakeMove(board, actualMove);
-                    
+
+                    // ✅ Maintenant seulement, on enregistre le coup final pour l'affichage
+                    board->lastMove = actualMove;
+
                     
                     // GESTION SPÉCIALE : PROMOTION
                     // Pion blanc arrive en haut (0) OU Pion noir arrive en bas (7)
