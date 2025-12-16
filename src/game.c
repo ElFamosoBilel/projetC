@@ -487,6 +487,32 @@ static void MakeMove(Board *board, Move move)
     {
          TilePop(endTile); // Retire la pièce mangée (elle est déjà stockée)
     }
+
+    // --- NOUVEAU : ENREGISTREMENT DES PIÈCES MANGÉES ---
+    // On ne le fait que si ce n'est PAS une simulation (donc un vrai coup de joueur ou de l'IA validé)
+    if (!isSimulation && move.capturedPieceID != 0)
+    {
+        // Qui a mangé ? C'est celui qui bouge.
+        int capturerColor = GetPieceColor(move.movingPieceID);
+        
+        if (capturerColor == 0) // C'est Blanc qui a mangé
+        {
+            if (board->capturedByWhiteCount < 16)
+            {
+                board->capturedByWhite[board->capturedByWhiteCount] = move.capturedPieceID;
+                board->capturedByWhiteCount++;
+            }
+        }
+        else // C'est Noir qui a mangé
+        {
+            if (board->capturedByBlackCount < 16)
+            {
+                board->capturedByBlack[board->capturedByBlackCount] = move.capturedPieceID;
+                board->capturedByBlackCount++;
+            }
+        }
+    }
+    // ----------------------------------------------------
     
     // Le sol reste (sauf s'il y a un bug). TilePop gère cela.
     int pieceID = TilePop(startTile); // Retire la pièce de départ
@@ -916,6 +942,12 @@ void GameInit(Board *board)
     board->lastMove.endY = -1;
     board->lastMove.movingPieceID = -1;
     board->lastMove.capturedPieceID = 0;
+    
+    // --- NOUVEAU : RESET CAPTURES ---
+    board->capturedByWhiteCount = 0;
+    board->capturedByBlackCount = 0;
+    // --------------------------------
+
     kingMoved[0] = kingMoved[1] = false;
     rookMoved[0][0] = rookMoved[0][1] = false;
     rookMoved[1][0] = rookMoved[1][1] = false;
@@ -1515,6 +1547,52 @@ void GameDraw(const Board *board)
                 GREEN
             ); 
         }
+        
+        // --- NOUVEAU : DESSIN DES PIÈCES CAPTURÉES ---
+        float capturedScale = 0.6f; // Taille réduite (60%)
+        int capturedSize = (int)(tileSize * capturedScale);
+        int capturedMargin = 10;
+        
+        // 1. CAPTURES DES BLANCS (A gauche, empilées de bas en haut)
+        // Position X : A gauche du plateau
+        int whiteCaptX = offsetX - capturedSize - capturedMargin;
+        // Position Y de départ : Bas du plateau
+        int whiteCaptYStart = offsetY + boardH - capturedSize;
+
+        for (int i = 0; i < board->capturedByWhiteCount; i++)
+        {
+            int pieceID = board->capturedByWhite[i];
+            // On empile vers le haut (soustraction en Y)
+            int dY = whiteCaptYStart - (int)(i * (capturedSize * 0.7f)); // Chevauchement léger
+            
+            DrawTexturePro(
+                gTileTextures[pieceID],
+                (Rectangle){0, 0, gTileTextures[pieceID].width, gTileTextures[pieceID].height},
+                (Rectangle){(float)whiteCaptX, (float)dY, (float)capturedSize, (float)capturedSize},
+                (Vector2){0,0}, 0, WHITE
+            );
+        }
+
+        // 2. CAPTURES DES NOIRS (A droite, empilées de haut en bas)
+        // Position X : A droite du plateau
+        int blackCaptX = offsetX + boardW + capturedMargin;
+        // Position Y de départ : Haut du plateau
+        int blackCaptYStart = offsetY;
+
+        for (int i = 0; i < board->capturedByBlackCount; i++)
+        {
+            int pieceID = board->capturedByBlack[i];
+            // On empile vers le bas (addition en Y)
+            int dY = blackCaptYStart + (int)(i * (capturedSize * 0.7f)); 
+            
+            DrawTexturePro(
+                gTileTextures[pieceID],
+                (Rectangle){0, 0, gTileTextures[pieceID].width, gTileTextures[pieceID].height},
+                (Rectangle){(float)blackCaptX, (float)dY, (float)capturedSize, (float)capturedSize},
+                (Vector2){0,0}, 0, WHITE
+            );
+        }
+        // ---------------------------------------------
 
         // DESSIN DES TIMERS
         int centerTextY = offsetY + boardH / 2 - FONT_SIZE / 2;
@@ -1565,12 +1643,26 @@ void GameDraw(const Board *board)
         DrawText(txt, screenW/2 - MeasureText(txt, 50)/2, screenH/2 - 100, 50, c);
         
         // Bouton Rejouer
-        const char *menuText = "CLIQUEZ / APPUYEZ SUR R POUR REJOUER";
-        int mWidth = MeasureText(menuText, 30);
-        
-        DrawText(menuText, screenW/2 - mWidth/2, screenH/2, 30, YELLOW);
-        DrawRectangleLines(screenW/2 - 160, screenH/2 - 5, 320, 40, YELLOW);
-        
+        const char *replayText = "Cliquer ou appuyer sur R pour rejouer";
+        int fontSize = 28;
+        int padding = 20;
+        Vector2 textSize = MeasureTextEx(GetFontDefault(), replayText, fontSize, 1);
+        Rectangle replayButton = 
+        {
+            .x = GetScreenWidth() / 2 - (textSize.x + padding * 2) / 2 - 15,
+            .y = GetScreenHeight() / 2 ,
+            .width  = textSize.x + padding * 2 + 30,
+            .height = textSize.y + padding * 2
+        };
+        DrawRectangleRounded(replayButton, 0.25f, 8, DARKGRAY);
+        DrawRectangleRoundedLines(replayButton, 0.25f, 8, RAYWHITE);
+
+        DrawText(replayText, replayButton.x + padding, replayButton.y + padding, fontSize, RAYWHITE);
+        if (CheckCollisionPointRec(GetMousePosition(), replayButton) && IsMouseButtonPressed(MOUSE_LEFT_BUTTON))
+        {
+            GameInit(board);
+        }
+
         DrawText("Appuyer sur ECHAP pour quitter", screenW/2 - MeasureText("Appuyer sur ECHAP pour quitter", 20)/2, screenH/2 + 100, 20, RAYWHITE);
     }
     
