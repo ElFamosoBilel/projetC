@@ -48,8 +48,8 @@ int main(void)
     
     // Taille minimale pour éviter de casser l'affichage
     SetWindowMinSize(400, 400);
-
-    // Chargement des assets
+    InitAudioDevice();
+    // Chargement des assets    
     gTileTextures[0] = LoadTexture("assets/carreau_blanc.png");
     gTileTextures[1] = LoadTexture("assets/carreau_noir.png");
     gTileTextures[2] = LoadTexture("assets/cavalier_blanc.png");
@@ -65,6 +65,14 @@ int main(void)
     gTileTextures[12] = LoadTexture("assets/tour_blanche.png");
     gTileTextures[13] = LoadTexture("assets/tour_noir.png");
     gTileTextureCount = 14;
+
+    gMenuBackground = LoadTexture("assets/fond_bois.jpg");
+    gPieceSound = LoadSound("assets/piece_sound.mp3");
+    gCheckSound = LoadSound("assets/echec_sound.mp3");
+    gEatingSound = LoadSound("assets/eating_sound.mp3");
+    SetSoundVolume(gPieceSound, 2.0f);
+    SetSoundVolume(gCheckSound, 1.5f);
+    SetSoundVolume(gEatingSound, 1.5f);
     
     Board board = {0}; 
     GameInit(&board); 
