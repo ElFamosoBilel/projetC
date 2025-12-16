@@ -96,6 +96,6 @@ typedef struct
 
 void GameInit(Board *board);
 void GameUpdate(Board *board, float dt);
-void GameDraw(const Board *board);
+void GameDraw(Board *board);
 
 #endif

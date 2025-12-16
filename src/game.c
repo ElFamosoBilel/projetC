@@ -831,6 +831,10 @@ static void AIMakeMove(Board *board, float dt)
             MakeMove(board, bestMove);
             board->lastMove = bestMove;
             PlaySound(gPieceSound);
+            if (board->lastMove.capturedPieceID != -1 && board->lastMove.capturedPieceID != 0) 
+            {
+                PlaySound(gEatingSound);
+            }
 
             // Gérer la promotion de l'IA (Pion arrive en ligne 7)
             Tile *endTile = &board->tiles[bestMove.endY][bestMove.endX];
@@ -1403,17 +1407,10 @@ void GameUpdate(Board *board, float dt)
     else if (board->state == STATE_GAMEOVER)
     {
         // Touche R pour recommencer ou clic sur le bouton "Rejouer"
-        if (IsKeyPressed(KEY_R) || IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) 
+        if (IsKeyPressed(KEY_R)) 
         {
-            Vector2 m = GetMousePosition();
-            int cW = GetScreenWidth() / 2; 
-            int cH = GetScreenHeight() / 2;
-            
-            if (IsKeyPressed(KEY_R) || (m.x > cW - 160 && m.x < cW + 160 && m.y > cH - 5 && m.y < cH + 35)) 
-            {
-                GameInit(board);
-                TraceLog(LOG_INFO, "Nouvelle partie lancée.");
-            }
+            GameInit(board);
+            TraceLog(LOG_INFO, "Nouvelle partie lancée.");
         }
     }
 }
