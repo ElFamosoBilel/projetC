@@ -84,10 +84,10 @@ typedef struct
     int AIDepth; // Profondeur AlphaBeta
     float AIDefaultDelay; // Délai par défaut
     Move lastMove; // Stocke le dernier coup
-    int whiteCapturedPieces[MAX_CAPTURED_PIECES]; // Les pieces capturé par les blancs
-    int whiteCapturedCount;
-    int blackCapturedPieces[MAX_CAPTURED_PIECES]; // Les pieces capturé par les noirs
-    int blackCapturedCount;
+    int capturedByWhite[16]; // Liste des ID des pièces mangées par les Blancs
+    int capturedByWhiteCount; // Nombre de pièces mangées par les Blancs
+    int capturedByBlack[16]; // Liste des ID des pièces mangées par les Noirs
+    int capturedByBlackCount; // Nombre de pièces mangées par les Noirs
 } Board;
 
 void GameInit(Board *board);
