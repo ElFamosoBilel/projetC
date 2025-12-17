@@ -831,8 +831,11 @@ static void AIMakeMove(Board *board, float dt)
             MakeMove(board, bestMove);
             board->lastMove = bestMove;
             PlaySound(gPieceSound);
-
-            // Gérer la promotion de l'IA (Pion arrive en ligne 7)
+            if (board->lastMove.capturedPieceID != -1 && board->lastMove.capturedPieceID != 0) 
+            {
+                PlaySound(gEatingSound);
+            }
+                        // Gérer la promotion de l'IA (Pion arrive en ligne 7)
             Tile *endTile = &board->tiles[bestMove.endY][bestMove.endX];
             int pieceID = endTile->layers[endTile->layerCount - 1];
 
