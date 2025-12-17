@@ -298,6 +298,12 @@ static bool IsMoveValid(const Board *board, int startX, int startY, int endX, in
                     ruleMatch = true; 
                 }
             }
+            // --- MODIFICATION : PRISE EN PASSANT ---
+            // Si la case cible est vide MAIS qu'elle correspond aux coordonnées de prise en passant
+            else if (targetTile->layerCount <= 1 && endX == board->enPassantX && endY == board->enPassantY)
+            {
+                ruleMatch = true;
+            }
         }
         // Avance simple (1 case)
         else if (dx == 0 && dy == direction) 
@@ -479,14 +485,23 @@ static void MakeMove(Board *board, Move move)
     
     // Sauvegarder la pièce capturée (si elle n'est pas déjà dans 'move.capturedPieceID')
     // Pour l'IA, on suppose que 'capturedPieceID' est déjà pré-rempli par GenerateLegalMoves.
-    if (move.capturedPieceID == 0 && endTile->layerCount > 1) 
+    if (!move.isEnPassant && move.capturedPieceID == 0 && endTile->layerCount > 1) 
     {
         move.capturedPieceID = TilePop(endTile); // Retire la pièce mangée et stocke son ID
     } 
-    else if (move.capturedPieceID != 0)
+    else if (move.capturedPieceID != 0 && !move.isEnPassant)
     {
          TilePop(endTile); // Retire la pièce mangée (elle est déjà stockée)
     }
+
+    // --- LOGIQUE PRISE EN PASSANT (EXECUTION) ---
+    if (move.isEnPassant)
+    {
+        // La pièce mangée n'est pas sur endY, mais sur startY (à côté du départ)
+        Tile *capturedPawnTile = &board->tiles[move.startY][move.endX];
+        TilePop(capturedPawnTile); // On supprime le pion adverse
+    }
+    // --------------------------------------------
 
     // --- NOUVEAU : ENREGISTREMENT DES PIÈCES MANGÉES ---
     // On ne le fait que si ce n'est PAS une simulation (donc un vrai coup de joueur ou de l'IA validé)
@@ -534,7 +549,6 @@ static void MakeMove(Board *board, Move move)
         }
     }
 
-
     // Logique du roque si c'est un coup de roque
     if ((pieceID == 10 || pieceID == 11) && abs(move.endX - move.startX) == 2)
     {
@@ -547,6 +561,20 @@ static void MakeMove(Board *board, Move move)
         int rookID = TilePop(rookStartTile);
         TilePush(rookEndTile, rookID);
     }
+
+    // --- MISE A JOUR ETAT EN PASSANT (POUR LE PROCHAIN TOUR) ---
+    // 1. On efface l'ancienne possibilité (elle ne dure qu'un tour)
+    board->enPassantX = -1;
+    board->enPassantY = -1;
+
+    // 2. Si c'est un PION qui avance de 2 CASES, on crée une nouvelle cible
+    if ((pieceID == 6 || pieceID == 7) && abs(move.endY - move.startY) == 2)
+    {
+        board->enPassantX = move.startX;
+        // La cible est la case sautée (moyenne des Y)
+        board->enPassantY = (move.startY + move.endY) / 2;
+    }
+    // -----------------------------------------------------------
 }
 
 // Annule le coup (replace la pièce, replace la pièce capturée, annule le roque)
@@ -559,11 +587,23 @@ static void UnmakeMove(Board *board, Move move)
     int pieceID = TilePop(endTile); // Supprime la pièce tout en la stockant
     TilePush(startTile, pieceID); // Replace la pièce à son ancienne position
 
-    // Replacer la pièce mangée
-    if (move.capturedPieceID != 0)
+    // --- RESTAURATION PRISE EN PASSANT ---
+    if (move.isEnPassant)
     {
-        TilePush(endTile, move.capturedPieceID); // Replace la pièce mangée 
+        // On remet le pion mangé sur sa case d'origine (à côté de start)
+        Tile *capturedPawnTile = &board->tiles[move.startY][move.endX];
+        TilePush(capturedPawnTile, move.capturedPieceID);
     }
+    else if (move.capturedPieceID != 0)
+    {
+        // Capture classique
+        TilePush(endTile, move.capturedPieceID); 
+    }
+    
+    // Restauration des variables globales du board
+    board->enPassantX = move.prevEnPassantX;
+    board->enPassantY = move.prevEnPassantY;
+    // --------------------------------------
     
     // Annuler le roque si c'était un coup de roque
     if ((pieceID == 10 || pieceID == 11) && abs(move.endX - move.startX) == 2)
@@ -607,13 +647,34 @@ static int GenerateLegalMoves(Board *board, Move movelist[], int playerColor)
                     if (IsMoveValid(board, startX, startY, endX, endY))
                     {
                         // Créer le coup de base
-                        Move m = {startX, startY, endX, endY, pieceID, 0}; 
+                        Move m = {startX, startY, endX, endY, pieceID, 0, false, 0, 0}; 
 
-                        // Récupérer la pièce capturée (simulée)
+                        // Sauvegarde de l'état actuel du En Passant
+                        m.prevEnPassantX = board->enPassantX;
+                        m.prevEnPassantY = board->enPassantY;
+
+                        // Vérification si c'est une Prise en Passant
                         Tile *endTile = &board->tiles[endY][endX];
-                        if (endTile->layerCount > 1)
+                        
+                        // Si c'est un pion, qui va en diagonale, sur une case vide
+                        if ((pieceID == 6 || pieceID == 7) && abs(endX - startX) == 1 && endTile->layerCount <= 1)
                         {
-                            m.capturedPieceID = endTile->layers[endTile->layerCount - 1];
+                            // C'est un En Passant valide (validé par IsMoveValid)
+                            m.isEnPassant = true;
+                            // La pièce mangée est sur la case [startY][endX]
+                            Tile *capturedTile = &board->tiles[startY][endX];
+                            if (capturedTile->layerCount > 1)
+                            {
+                                m.capturedPieceID = capturedTile->layers[capturedTile->layerCount - 1];
+                            }
+                        }
+                        else
+                        {
+                            // Capture classique ou déplacement normal
+                            if (endTile->layerCount > 1)
+                            {
+                                m.capturedPieceID = endTile->layers[endTile->layerCount - 1];
+                            }
                         }
                         
                         // On simule le coup
@@ -764,7 +825,8 @@ static Move FindBestMove(Board *board, int depth)
     {
         TraceLog(LOG_WARNING, "Aucun coup légal trouvé pour l'IA !");
         if (count > 0) return legalMoves[0];
-        return (Move){-1, -1, -1, -1, 0, 0}; 
+        // Correction de l'avertissement : on initialise tous les champs
+        return (Move){-1, -1, -1, -1, 0, 0, false, -1, -1}; 
     }
 
     for (int i = 0; i < count; i++)
@@ -831,7 +893,7 @@ static void AIMakeMove(Board *board, float dt)
             MakeMove(board, bestMove);
             board->lastMove = bestMove;
             PlaySound(gPieceSound);
-            if (board->lastMove.capturedPieceID != -1 && board->lastMove.capturedPieceID != 0) 
+            if ((board->lastMove.capturedPieceID != -1 && board->lastMove.capturedPieceID != 0) || bestMove.isEnPassant) 
             {
                 PlaySound(gEatingSound);
             }
@@ -951,6 +1013,10 @@ void GameInit(Board *board)
     board->capturedByBlackCount = 0;
     // --------------------------------
 
+    // --- NOUVEAU : RESET EN PASSANT ---
+    board->enPassantX = -1;
+    board->enPassantY = -1;
+
     kingMoved[0] = kingMoved[1] = false;
     rookMoved[0][0] = rookMoved[0][1] = false;
     rookMoved[1][0] = rookMoved[1][1] = false;
@@ -1057,11 +1123,17 @@ static void GameLogicUpdate(Board *board, float dt)
                                 {
                                     // SIMULATION DE SÉCURITÉ (Copie du plateau pour la simulation)
                                     Board temp = *board;
-                                    Move m = {selectedX, selectedY, px, py, pieceID, 0};
+                                    Move m = {selectedX, selectedY, px, py, pieceID, 0, false, board->enPassantX, board->enPassantY};
                                     Tile *sNew = &temp.tiles[py][px];
                                     
-                                    // Récupérer la pièce capturée (si nécessaire)
-                                    if(sNew->layerCount > 1) 
+                                    // Détection En Passant
+                                    if ((pieceID == 6 || pieceID == 7) && abs(px - selectedX) == 1 && sNew->layerCount <= 1)
+                                    {
+                                        m.isEnPassant = true;
+                                        Tile *epTile = &temp.tiles[selectedY][px];
+                                        m.capturedPieceID = epTile->layers[epTile->layerCount - 1];
+                                    }
+                                    else if(sNew->layerCount > 1) 
                                     {
                                          m.capturedPieceID = sNew->layers[sNew->layerCount-1];
                                     }
@@ -1119,10 +1191,17 @@ static void GameLogicUpdate(Board *board, float dt)
                 {
                     Tile *oldTile = &board->tiles[selectedY][selectedX]; 
                     int pieceID = oldTile->layers[oldTile->layerCount - 1];
-                    Move actualMove = {startX, startY, endX, endY, pieceID, 0};
+                    Move actualMove = {startX, startY, endX, endY, pieceID, 0, false, board->enPassantX, board->enPassantY};
 
-                    // Pré-calcul de la pièce capturée
-                    if (clickedTile->layerCount > 1)
+                    // Détection En Passant pour le clic souris
+                    if ((pieceID == 6 || pieceID == 7) && abs(endX - startX) == 1 && clickedTile->layerCount <= 1)
+                    {
+                         // Si je suis un pion, que je vais en diagonale sur une case vide, c'est forcement un En Passant (validé par IsMoveValid)
+                         actualMove.isEnPassant = true;
+                         Tile *epTile = &board->tiles[startY][endX];
+                         actualMove.capturedPieceID = epTile->layers[epTile->layerCount - 1];
+                    }
+                    else if (clickedTile->layerCount > 1)
                     {
                         actualMove.capturedPieceID = clickedTile->layers[clickedTile->layerCount - 1];
                     }
@@ -1513,6 +1592,16 @@ void GameDraw(Board *board)
         }
 
         // DESSIN DES COUPS POSSIBLES (Aide visuelle)
+        // --- NOUVEAU : Identification si la pièce sélectionnée est un Pion ---
+        bool selectedIsPawn = false;
+        if (selectedX != -1 && selectedY != -1) {
+            Tile *tSel = &board->tiles[selectedY][selectedX];
+            if (tSel->layerCount > 1) {
+                 int pID = tSel->layers[tSel->layerCount - 1];
+                 if (pID == 6 || pID == 7) selectedIsPawn = true;
+            }
+        }
+        
         for (int i = 0; i < possibleMoveCount; i++) 
         {
             int x = possibleMoves[i][0]; 
@@ -1524,6 +1613,12 @@ void GameDraw(Board *board)
             
             // Si c'est un ennemi -> Carré rouge
             if (t->layerCount > 1 && GetPieceColor(t->layers[t->layerCount - 1]) != currentTurn) 
+            {
+                DrawRectangleLinesEx((Rectangle){(float)dX, (float)dY, (float)tileSize, (float)tileSize}, 5, Fade(RED, 0.6f));
+            }
+            // Si c'est un "En Passant" possible (case vide mais attaque possible) -> Carré rouge aussi
+            // --- CORRECTION : UNIQUEMENT SI C'EST UN PION ---
+            else if (board->enPassantX == x && board->enPassantY == y && selectedIsPawn)
             {
                 DrawRectangleLinesEx((Rectangle){(float)dX, (float)dY, (float)tileSize, (float)tileSize}, 5, Fade(RED, 0.6f));
             }
