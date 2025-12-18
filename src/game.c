@@ -298,6 +298,7 @@ static bool IsMoveValid(const Board *board, int startX, int startY, int endX, in
                     ruleMatch = true; 
                 }
             }
+            // --- MODIFICATION : PRISE EN PASSANT ---
             // Si la case cible est vide MAIS qu'elle correspond aux coordonnées de prise en passant
             else if (targetTile->layerCount <= 1 && endX == board->enPassantX && endY == board->enPassantY)
             {
@@ -493,13 +494,16 @@ static void MakeMove(Board *board, Move move)
          TilePop(endTile); // Retire la pièce mangée (elle est déjà stockée)
     }
 
-    // LOGIQUE PRISE EN PASSANT (EXECUTION)
+    // --- LOGIQUE PRISE EN PASSANT (EXECUTION) ---
     if (move.isEnPassant)
     {
         // La pièce mangée n'est pas sur endY, mais sur startY (à côté du départ)
         Tile *capturedPawnTile = &board->tiles[move.startY][move.endX];
         TilePop(capturedPawnTile); // On supprime le pion adverse
     }
+    // --------------------------------------------
+
+    // --- NOUVEAU : ENREGISTREMENT DES PIÈCES MANGÉES ---
     // On ne le fait que si ce n'est PAS une simulation (donc un vrai coup de joueur ou de l'IA validé)
     if (!isSimulation && move.capturedPieceID != 0)
     {
@@ -522,6 +526,8 @@ static void MakeMove(Board *board, Move move)
                 board->capturedByBlackCount++;
             }
         }
+    }
+    // ----------------------------------------------------
     
     // Le sol reste (sauf s'il y a un bug). TilePop gère cela.
     int pieceID = TilePop(startTile); // Retire la pièce de départ
@@ -556,7 +562,7 @@ static void MakeMove(Board *board, Move move)
         TilePush(rookEndTile, rookID);
     }
 
-    // MISE A JOUR ETAT EN PASSANT (POUR LE PROCHAIN TOUR)
+    // --- MISE A JOUR ETAT EN PASSANT (POUR LE PROCHAIN TOUR) ---
     // 1. On efface l'ancienne possibilité (elle ne dure qu'un tour)
     board->enPassantX = -1;
     board->enPassantY = -1;
@@ -568,6 +574,7 @@ static void MakeMove(Board *board, Move move)
         // La cible est la case sautée (moyenne des Y)
         board->enPassantY = (move.startY + move.endY) / 2;
     }
+    // -----------------------------------------------------------
 }
 
 // Annule le coup (replace la pièce, replace la pièce capturée, annule le roque)
@@ -580,7 +587,7 @@ static void UnmakeMove(Board *board, Move move)
     int pieceID = TilePop(endTile); // Supprime la pièce tout en la stockant
     TilePush(startTile, pieceID); // Replace la pièce à son ancienne position
 
-    // RESTAURATION PRISE EN PASSANT
+    // --- RESTAURATION PRISE EN PASSANT ---
     if (move.isEnPassant)
     {
         // On remet le pion mangé sur sa case d'origine (à côté de start)
@@ -595,7 +602,9 @@ static void UnmakeMove(Board *board, Move move)
     
     // Restauration des variables globales du board
     board->enPassantX = move.prevEnPassantX;
-    board->enPassantY = move.prevEnPassantY;    
+    board->enPassantY = move.prevEnPassantY;
+    // --------------------------------------
+    
     // Annuler le roque si c'était un coup de roque
     if ((pieceID == 10 || pieceID == 11) && abs(move.endX - move.startX) == 2)
     {
@@ -998,8 +1007,13 @@ void GameInit(Board *board)
     board->lastMove.endY = -1;
     board->lastMove.movingPieceID = -1;
     board->lastMove.capturedPieceID = 0;
+    
+    // --- NOUVEAU : RESET CAPTURES ---
     board->capturedByWhiteCount = 0;
     board->capturedByBlackCount = 0;
+    // --------------------------------
+
+    // --- NOUVEAU : RESET EN PASSANT ---
     board->enPassantX = -1;
     board->enPassantY = -1;
 
@@ -1578,7 +1592,7 @@ void GameDraw(Board *board)
         }
 
         // DESSIN DES COUPS POSSIBLES (Aide visuelle)
-        // Identification si la pièce sélectionnée est un Pion
+        // --- NOUVEAU : Identification si la pièce sélectionnée est un Pion ---
         bool selectedIsPawn = false;
         if (selectedX != -1 && selectedY != -1) {
             Tile *tSel = &board->tiles[selectedY][selectedX];
@@ -1603,7 +1617,7 @@ void GameDraw(Board *board)
                 DrawRectangleLinesEx((Rectangle){(float)dX, (float)dY, (float)tileSize, (float)tileSize}, 5, Fade(RED, 0.6f));
             }
             // Si c'est un "En Passant" possible (case vide mais attaque possible) -> Carré rouge aussi
-            // UNIQUEMENT SI C'EST UN PION
+            // --- CORRECTION : UNIQUEMENT SI C'EST UN PION ---
             else if (board->enPassantX == x && board->enPassantY == y && selectedIsPawn)
             {
                 DrawRectangleLinesEx((Rectangle){(float)dX, (float)dY, (float)tileSize, (float)tileSize}, 5, Fade(RED, 0.6f));
@@ -1625,7 +1639,7 @@ void GameDraw(Board *board)
             ); 
         }
         
-        // DESSIN DES PIÈCES CAPTURÉES
+        // --- NOUVEAU : DESSIN DES PIÈCES CAPTURÉES ---
         float capturedScale = 0.6f; // Taille réduite (60%)
         int capturedSize = (int)(tileSize * capturedScale);
         int capturedMargin = 10;
@@ -1669,6 +1683,7 @@ void GameDraw(Board *board)
                 (Vector2){0,0}, 0, WHITE
             );
         }
+        // ---------------------------------------------
 
         // DESSIN DES TIMERS
         int centerTextY = offsetY + boardH / 2 - FONT_SIZE / 2;
