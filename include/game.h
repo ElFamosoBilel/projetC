@@ -61,9 +61,7 @@ typedef struct
     int startX, startY; // Ligne et colonne avant le mouvement
     int endX, endY; // Après le mouvement
     int movingPieceID; // Quel pièce est joué
-    int capturedPieceID; // Stocke la pièce mangé si y'en a une
-    
-    // --- NOUVEAU POUR PRISE EN PASSANT ---
+    int capturedPieceID; // Stocke la pièce mangé si y'en a une    
     bool isEnPassant;       // Est-ce un coup de prise en passant ?
     int prevEnPassantX;     // Pour restaurer l'état du plateau dans UnmakeMove
     int prevEnPassantY;     // Pour restaurer l'état du plateau dans UnmakeMove
@@ -93,8 +91,6 @@ typedef struct
     int capturedByWhiteCount; // Nombre de pièces mangées par les Blancs
     int capturedByBlack[16]; // Liste des ID des pièces mangées par les Noirs
     int capturedByBlackCount; // Nombre de pièces mangées par les Noirs
-
-    // --- NOUVEAU POUR PRISE EN PASSANT ---
     int enPassantX; // Coordonnée X de la case "fantôme" attaquable (-1 si aucune)
     int enPassantY; // Coordonnée Y de la case "fantôme" attaquable (-1 si aucune)
 } Board;
